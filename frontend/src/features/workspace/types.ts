@@ -43,9 +43,10 @@ export type PersonRow = {
   department_id: string | null;
   membership_id: string | null;
   membership_status: string | null;
-  roles: Array<{ id: string; name: string }>;
+  roles: Array<{ id: string; name: string; is_owner_role?: boolean }>;
   last_login: string | null;
   permissions: string[];
+  custom_data?: Record<string, unknown>;
 };
 
 export type MePayload = {

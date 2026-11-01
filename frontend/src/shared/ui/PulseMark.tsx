@@ -11,7 +11,7 @@ const sizes = {
 
 export function PulseMark({ wordmark = false, size = "md" }: PulseMarkProps) {
   return (
-    <span className="inline-flex items-center gap-2.5 text-slate-900">
+    <span className="inline-flex items-center gap-2.5 text-slate-900 dark:text-slate-100">
       <span className={`inline-flex items-center justify-center bg-teal-800 text-white ${sizes[size]}`}>
         <svg viewBox="0 0 24 24" className={size === "sm" ? "h-4 w-4" : "h-6 w-6"} fill="none" aria-hidden="true">
           <path d="M3 12h4.2l2.1-5.2 3.6 10.4 2.2-5.2H21" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />

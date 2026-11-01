@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../../shared/api/client";
 import type { CompanyList } from "../../shared/api/types";
 import { Breadcrumbs } from "../../shared/ui/Breadcrumbs";
@@ -36,11 +36,13 @@ export function CompaniesPage() {
     <section className="space-y-5">
       <Breadcrumbs items={["Platform", "Companies"]} />
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Companies</h1>
-        <p className="mt-1 text-sm text-slate-600">Registered companies from PostgreSQL. Membership counts include active memberships only.</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Companies</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+          Open a company to see its members. Users are organized under companies, not as a global directory.
+        </p>
       </div>
       <form
-        className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-[1fr_12rem_auto]"
+        className="grid gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 md:grid-cols-[1fr_12rem_auto]"
         onSubmit={(event) => {
           event.preventDefault();
           setPage(1);
@@ -80,20 +82,28 @@ export function CompaniesPage() {
         />
       ) : null}
       {companies.data && companies.data.count === 0 ? (
-        <EmptyState title="No companies" body="No company records match this search. New companies will appear here after they are created in PostgreSQL." />
+        <EmptyState title="No companies" body="No company records match this search. New companies will appear here after they are created." />
       ) : null}
       {companies.data && companies.data.results.length > 0 ? (
         <>
           <DataTable columns={["Name", "Slug", "Status", "Created", "Members"]}>
             {companies.data.results.map((company) => (
               <tr key={company.id}>
-                <td className="px-4 py-3 font-medium text-slate-900">{company.display_name}</td>
-                <td className="px-4 py-3 text-slate-600">{company.slug}</td>
+                <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
+                  <Link className="text-teal-800 hover:underline" to={`/platform/companies/${company.id}`}>
+                    {company.display_name}
+                  </Link>
+                </td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{company.slug}</td>
                 <td className="px-4 py-3">
                   <StatusBadge status={company.status} />
                 </td>
-                <td className="px-4 py-3 text-slate-600">{new Date(company.created_at).toLocaleString()}</td>
-                <td className="px-4 py-3 text-slate-600">{company.membership_count}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{new Date(company.created_at).toLocaleString()}</td>
+                <td className="px-4 py-3">
+                  <Link className="font-medium text-teal-800 hover:underline" to={`/platform/companies/${company.id}`}>
+                    {company.membership_count}
+                  </Link>
+                </td>
               </tr>
             ))}
           </DataTable>

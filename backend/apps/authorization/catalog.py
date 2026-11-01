@@ -22,12 +22,25 @@ COMPANY_PERMISSIONS = [
     ("dashboards.view", "View the dashboard assigned to the caller.", None),
     ("dashboards.manage", "Edit and publish role dashboards.", None),
     ("audit.view", "Read the company audit log.", None),
+    ("custom_entities.manage", "Create and archive custom entities and their fields.", None),
+    ("custom_entities.view", "List and view custom entity records.", None),
+    ("custom_entities.create", "Create custom entity records.", None),
+    ("custom_entities.update", "Update custom entity records.", None),
+    ("custom_entities.delete", "Archive custom entity records.", None),
     ("hrms.leave.view", "Read leave policies and requests.", "hrms"),
     ("hrms.leave.request", "Create a leave request for the caller's person.", "hrms"),
     ("hrms.leave.decide", "Approve or reject leave requests.", "hrms"),
+    ("parties.view", "View external parties.", None),
+    ("parties.manage", "Create and update external parties.", None),
+    ("projects.view", "View projects and tasks.", "projects"),
+    ("projects.manage", "Create and update projects and tasks.", "projects"),
+    ("crm.view", "View CRM leads and accounts.", "crm"),
+    ("crm.manage", "Create and convert CRM leads and accounts.", "crm"),
+    ("commerce.view", "View commerce products and orders.", "commerce"),
+    ("commerce.manage", "Create commerce products and orders.", "commerce"),
 ]
 
-OWNER_FLOOR = ("company.update", "roles.manage", "billing.manage", "membership.invite")
+OWNER_FLOOR = ("company.update", "roles.manage", "billing.manage", "membership.invite", "custom_entities.manage")
 
 HR_MANAGER = (
     "company.view",
@@ -77,14 +90,20 @@ NAV_CATALOG = [
     ("studio", "Dashboard Studio", "dashboards.manage", None),
     ("modules", "Module Management", "modules.view", None),
     ("settings", "Company Settings", "company.update", None),
+    ("custom-entities", "Custom Records", "custom_entities.view", None),
     ("audit", "Audit Logs", "audit.view", None),
     ("hrms", "HRMS Leave", "hrms.leave.view", "hrms"),
+    ("parties", "Parties", "parties.view", None),
+    ("projects", "Projects", "projects.view", "projects"),
+    ("crm", "CRM", "crm.view", "crm"),
+    ("commerce", "Commerce", "commerce.view", "commerce"),
 ]
 
 PLATFORM_PERMISSIONS = [
     ("platform.companies.view", "View companies, lifecycle, and usage summaries."),
     ("platform.companies.manage", "Suspend, reactivate, and close companies."),
     ("platform.users.view", "View global user and membership metrics."),
+    ("platform.users.manage", "Create and update platform users and permission grants."),
     ("platform.billing.view", "View subscriptions, invoices, payments, refunds, and revenue."),
     ("platform.billing.manage", "Execute refunds."),
     ("platform.modules.manage", "View module adoption and manage the catalog."),

@@ -32,6 +32,7 @@ class OrganizationUnitType(models.Model):
         ordering = ["position", "singular_label"]
         constraints = [
             models.UniqueConstraint(fields=["company", "key"], name="org_unit_types_company_key_unique"),
+            models.UniqueConstraint(fields=["company", "id"], name="org_unit_types_company_id_id_unique"),
         ]
 
 
@@ -59,6 +60,7 @@ class Department(models.Model):
         related_name="managed_units",
     )
     status = models.CharField(max_length=32, choices=UnitStatus.choices, default=UnitStatus.ACTIVE)
+    custom_data = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -71,6 +73,7 @@ class Department(models.Model):
                 condition=models.Q(key__isnull=False),
                 name="departments_company_key_unique",
             ),
+            models.UniqueConstraint(fields=["company", "id"], name="departments_company_id_id_unique"),
             models.CheckConstraint(
                 condition=models.Q(status__in=[choice.value for choice in UnitStatus]),
                 name="departments_status_valid",
@@ -87,6 +90,8 @@ class Person(models.Model):
     work_email = models.EmailField(blank=True, default="")
     job_title = models.CharField(max_length=150, blank=True, default="")
     status = models.CharField(max_length=32, choices=PersonStatus.choices, default=PersonStatus.ACTIVE)
+    deactivated_at = models.DateTimeField(null=True, blank=True)
+    custom_data = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -99,5 +104,11 @@ class Person(models.Model):
             models.CheckConstraint(
                 condition=models.Q(status__in=[choice.value for choice in PersonStatus]),
                 name="people_status_valid",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["company", "work_email"],
+                condition=~models.Q(work_email=""),
+                name="people_company_work_email_unique",
+            ),
+            models.UniqueConstraint(fields=["company", "id"], name="people_company_id_id_unique"),
         ]

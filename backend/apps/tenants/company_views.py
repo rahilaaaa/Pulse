@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+import smtplib
 import uuid
 from datetime import timedelta
 
@@ -9,7 +10,7 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -23,15 +24,40 @@ from apps.authorization.company import (
     require_permission,
 )
 from apps.authorization.models import CompanyRole, MembershipRoleAssignment
+from apps.billing.access import access_mode, current_subscription
 from apps.billing.services import subscription_summary
 from apps.dashboards.services import dashboard_for_membership, navigation_for
 from apps.identity.serializers import normalize_email
 from apps.modules_registry.models import CompanyModuleInstallation, InstallationStatus, ModuleDefinition
 from apps.modules_registry.services import catalog_for_company
 from apps.organization.models import Department, Person, PersonStatus, UnitStatus
+from apps.tenants.invitations import accept_invitation, join_with_invitation, load_pending_invitation, preview_invitation
 from apps.tenants.models import CompanyMembership, InvitationStatus, MembershipInvitation, MembershipStatus
-from apps.tenants.services import _ip, _request_id
+from apps.tenants.services import _ip, _request_id, company_settings_payload, update_company_settings
 from common.api.errors import conflict, not_found, permission_denied, validation_error
+from common.api.exceptions import PulseAPIException
+
+
+def _send_invitation_email(*, email: str, token: str) -> None:
+    link = f"{settings.FRONTEND_ORIGIN}/invitations/accept?token={token}"
+    try:
+        send_mail(
+            subject="Join a Pulse company",
+            message=(
+                "You were invited to join a company on Pulse.\n\n"
+                "Open this link to create your password (or sign in) and enter the company dashboard:\n"
+                f"{link}\n"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+    except (OSError, smtplib.SMTPException) as exc:
+        raise PulseAPIException(
+            code="email_delivery_failed",
+            message="The invitation message could not be delivered to that inbox.",
+            status_code=502,
+        ) from exc
 
 
 def _role_ids(raw) -> list[uuid.UUID]:
@@ -50,47 +76,104 @@ def _role_ids(raw) -> list[uuid.UUID]:
     return parsed
 
 
-def _company_for(user):
-    membership = (
+ACTIVE_COMPANY_SESSION_KEY = "active_company_id"
+
+
+def remember_active_company(request, company_id) -> None:
+    request.session[ACTIVE_COMPANY_SESSION_KEY] = str(company_id)
+
+
+def _company_for(request):
+    user = request.user
+    queryset = (
         CompanyMembership.objects.select_related("company")
         .filter(user=user, status=MembershipStatus.ACTIVE)
-        .order_by("created_at")
-        .first()
+        .order_by("created_at", "id")
     )
+    membership = None
+    raw = request.session.get(ACTIVE_COMPANY_SESSION_KEY)
+    if raw:
+        try:
+            company_id = uuid.UUID(str(raw))
+        except (ValueError, TypeError, AttributeError):
+            company_id = None
+        if company_id is not None:
+            membership = queryset.filter(company_id=company_id).first()
+        if membership is None:
+            request.session.pop(ACTIVE_COMPANY_SESSION_KEY, None)
+    if membership is None:
+        membership = queryset.first()
     if membership is None:
         raise not_found("Create a company before opening the dashboard.")
     bootstrap_company_access(membership.company, membership.company.created_by or user)
     return membership
 
 
+def _workspace_membership(user, membership):
+    """Open the shell for an active member. A healthy subscription does not also require company.view."""
+    mode = access_mode(membership.company, current_subscription(membership.company))
+    if mode in {"full", "grace"}:
+        return require_membership(user, membership.company_id)
+    return require_permission(user, membership.company_id, "company.view")
+
+
+def _workspace_payload(membership) -> dict:
+    return {
+        "company": {
+            "id": str(membership.company_id),
+            "legal_name": membership.company.legal_name,
+            "display_name": membership.company.display_name,
+            "slug": membership.company.slug,
+            "status": membership.company.status,
+            "timezone": membership.company.timezone,
+        },
+        "permissions": sorted(effective_permission_codes(membership)),
+        "navigation": navigation_for(membership),
+        "subscription": subscription_summary(membership.company),
+        "dashboard": dashboard_for_membership(membership),
+    }
+
+
+def _open_workspace(request):
+    return _workspace_membership(request.user, _company_for(request))
+
+
 class WorkspaceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        membership = require_permission(request.user, _company_for(request.user).company_id, "company.view")
-        return Response(
-            {
-                "company": {
-                    "id": str(membership.company_id),
-                    "legal_name": membership.company.legal_name,
-                    "display_name": membership.company.display_name,
-                    "slug": membership.company.slug,
-                    "status": membership.company.status,
-                    "timezone": membership.company.timezone,
-                },
-                "permissions": sorted(effective_permission_codes(membership)),
-                "navigation": navigation_for(membership),
-                "subscription": subscription_summary(membership.company),
-                "dashboard": dashboard_for_membership(membership),
-            }
+        return Response(_workspace_payload(_open_workspace(request)))
+
+
+class WorkspaceSwitchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        raw = request.data.get("company_id")
+        if not isinstance(raw, str) or not raw.strip():
+            raise validation_error([{"field": "company_id", "code": "required", "message": "Choose a company."}])
+        try:
+            company_id = uuid.UUID(raw.strip())
+        except ValueError:
+            raise validation_error([{"field": "company_id", "code": "invalid", "message": "Choose a company."}]) from None
+        membership = (
+            CompanyMembership.objects.select_related("company")
+            .filter(user=request.user, company_id=company_id, status=MembershipStatus.ACTIVE)
+            .first()
         )
+        if membership is None:
+            raise not_found()
+        opened = _workspace_membership(request.user, membership)
+        bootstrap_company_access(opened.company, opened.company.created_by or request.user)
+        remember_active_company(request, opened.company_id)
+        return Response(_workspace_payload(opened))
 
 
 class WorkspaceEnterView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        membership = _company_for(request.user)
+        membership = _company_for(request)
         state = getattr(membership.company, "onboarding_state", None)
         if state and state.workspace_entered_at is None and state.subscription_activated_at:
             state.workspace_entered_at = timezone.now()
@@ -102,7 +185,7 @@ class OverviewView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        membership = require_permission(request.user, _company_for(request.user).company_id, "company.view")
+        membership = require_permission(request.user, _company_for(request).company_id, "company.view")
         company = membership.company
         memberships = CompanyMembership.objects.filter(company=company)
         invitations = MembershipInvitation.objects.filter(company=company, status=InvitationStatus.PENDING)
@@ -178,80 +261,178 @@ class OverviewView(APIView):
         )
 
 
+def _invitation_payload(row, *, permission_codes):
+    from apps.tenants.custom_data_access import load_active_definitions, serialize_custom_data
+    from apps.tenants.models import FieldEntity
+
+    return {
+        "id": str(row.id),
+        "email": row.email,
+        "status": row.status,
+        "expires_at": row.expires_at.isoformat(),
+        "accepted_at": row.accepted_at.isoformat() if row.accepted_at else None,
+        "created_at": row.created_at.isoformat(),
+        "custom_data": serialize_custom_data(
+            load_active_definitions(row.company, FieldEntity.INVITATION),
+            row.custom_data or {},
+            entity=FieldEntity.INVITATION,
+            permission_codes=permission_codes,
+        ),
+    }
+
+
+def _membership_payload(membership, *, viewer_codes):
+    from apps.tenants.custom_data_access import load_active_definitions, serialize_custom_data
+    from apps.tenants.models import FieldEntity
+
+    codes = sorted(effective_permission_codes(membership))
+    return {
+        "id": str(membership.id),
+        "email": membership.user.email,
+        "first_name": membership.user.first_name,
+        "last_name": membership.user.last_name,
+        "status": membership.status,
+        "roles": [
+            {"id": str(item.role_id), "name": item.role.name, "is_owner_role": item.role.is_owner_role}
+            for item in membership.role_assignments.all()
+        ],
+        "permissions": codes,
+        "job_title": membership.person.job_title if membership.person_id else "",
+        "organization": membership.person.department.name
+        if membership.person_id and membership.person.department_id
+        else membership.company.display_name,
+        "last_login": membership.user.last_login.isoformat() if membership.user.last_login else None,
+        "custom_data": serialize_custom_data(
+            load_active_definitions(membership.company, FieldEntity.MEMBERSHIP),
+            membership.custom_data or {},
+            entity=FieldEntity.MEMBERSHIP,
+            permission_codes=viewer_codes,
+        ),
+    }
+
+
 class MembershipListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, company_id):
-        require_permission(request.user, company_id, "membership.view")
+        viewer = require_permission(request.user, company_id, "membership.view")
+        viewer_codes = effective_permission_codes(viewer)
         status = request.query_params.get("status") or ""
         role_id = request.query_params.get("role") or ""
         query = (request.query_params.get("q") or "").strip().lower()
-        rows = CompanyMembership.objects.filter(company_id=company_id).select_related("user", "person", "person__department", "company").prefetch_related("role_assignments__role")
+        rows = CompanyMembership.objects.filter(company_id=company_id).select_related(
+            "user", "person", "person__department", "company"
+        ).prefetch_related("role_assignments__role")
         if status:
             rows = rows.filter(status=status)
         if role_id:
             rows = rows.filter(role_assignments__role_id=role_id)
         if query:
             rows = rows.filter(Q(user__email__icontains=query) | Q(user__first_name__icontains=query) | Q(user__last_name__icontains=query))
-        results = []
-        for membership in rows.order_by("user__email").distinct():
-            codes = sorted(effective_permission_codes(membership))
-            results.append(
-                {
-                    "id": str(membership.id),
-                    "email": membership.user.email,
-                    "first_name": membership.user.first_name,
-                    "last_name": membership.user.last_name,
-                    "status": membership.status,
-                    "roles": [{"id": str(item.role_id), "name": item.role.name} for item in membership.role_assignments.all()],
-                    "permissions": codes,
-                    "job_title": membership.person.job_title if membership.person_id else "",
-                    "organization": membership.person.department.name if membership.person_id and membership.person.department_id else membership.company.display_name,
-                    "last_login": membership.user.last_login.isoformat() if membership.user.last_login else None,
-                }
-            )
+        results = [_membership_payload(row, viewer_codes=viewer_codes) for row in rows.order_by("user__email").distinct()]
         return Response({"results": results})
+
+
+class MembershipDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, company_id, membership_id):
+        viewer = require_permission(request.user, company_id, "membership.update")
+        viewer_codes = effective_permission_codes(viewer)
+        membership = (
+            CompanyMembership.objects.filter(company_id=company_id, pk=membership_id)
+            .select_related("user", "person", "person__department", "company")
+            .prefetch_related("role_assignments__role")
+            .first()
+        )
+        if membership is None:
+            raise not_found("That membership was not found.")
+        if "custom_data" not in request.data:
+            raise validation_error([{"field": "custom_data", "code": "required", "message": "Send custom field values."}])
+        from apps.tenants.custom_fields import normalize_custom_data
+        from apps.tenants.models import FieldEntity
+
+        before = dict(membership.custom_data or {})
+        membership.custom_data = normalize_custom_data(
+            membership.company,
+            FieldEntity.MEMBERSHIP,
+            request.data.get("custom_data"),
+            creating=False,
+            existing=membership.custom_data or {},
+            permission_codes=viewer_codes,
+        )
+        membership.save(update_fields=["custom_data", "updated_at"])
+        AuditLog.objects.create(
+            company_id=company_id,
+            actor=request.user,
+            action="membership.updated",
+            object_type="company_membership",
+            object_id=membership.id,
+            before={"custom_data": before},
+            after={"custom_data": dict(membership.custom_data or {})},
+            ip_address=_ip(request),
+            request_id=_request_id(request),
+        )
+        return Response(_membership_payload(membership, viewer_codes=viewer_codes))
 
 
 class InvitationListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, company_id):
-        require_permission(request.user, company_id, "membership.view")
-        rows = MembershipInvitation.objects.filter(company_id=company_id).order_by("-created_at")
-        return Response(
-            {
-                "results": [
-                    {"id": str(row.id), "email": row.email, "status": row.status, "expires_at": row.expires_at.isoformat(), "created_at": row.created_at.isoformat()}
-                    for row in rows
-                ]
-            }
-        )
+        membership = require_permission(request.user, company_id, "membership.view")
+        codes = effective_permission_codes(membership)
+        rows = MembershipInvitation.objects.filter(company_id=company_id).select_related("company").order_by("-created_at")
+        return Response({"results": [_invitation_payload(row, permission_codes=codes) for row in rows]})
 
     def post(self, request, company_id):
         membership = require_permission(request.user, company_id, "membership.invite")
-        email_raw = request.data.get("email")
+        codes = effective_permission_codes(membership)
+        payload = request.data
+        if not isinstance(payload, dict):
+            raise validation_error(
+                [{"field": "", "code": "invalid", "message": "Send a JSON object with an email address."}]
+            )
+        email_raw = payload.get("email")
         if not isinstance(email_raw, str) or "@" not in email_raw:
             raise validation_error([{"field": "email", "code": "invalid", "message": "Enter an email address."}])
         email = normalize_email(email_raw)
-        if CompanyMembership.objects.filter(company_id=company_id, user__email=email).exclude(status=MembershipStatus.REMOVED).exists():
-            raise conflict("That person already belongs to the company.", [{"field": "email", "code": "unique", "message": "That person already belongs to the company."}])
+        if (
+            CompanyMembership.objects.filter(company_id=company_id, user__email__iexact=email)
+            .exclude(status=MembershipStatus.REMOVED)
+            .exists()
+        ):
+            raise conflict(
+                "That person already belongs to the company. No invitation is needed.",
+                [{"field": "email", "code": "unique", "message": "That person already belongs to the company. No invitation is needed."}],
+            )
+        if Person.objects.filter(company_id=company_id, work_email__iexact=email, status=PersonStatus.INACTIVE).exists():
+            raise conflict(
+                "That person is inactive. Reactivate them before sending an invitation.",
+                [{"field": "email", "code": "inactive", "message": "That person is inactive. Reactivate them before sending an invitation."}],
+            )
         if MembershipInvitation.objects.filter(company_id=company_id, email=email, status=InvitationStatus.PENDING).exists():
             raise conflict("An invitation is already pending.", [{"field": "email", "code": "unique", "message": "An invitation is already pending."}])
+        from apps.tenants.custom_fields import normalize_custom_data
+        from apps.tenants.models import FieldEntity
+
+        custom_data = normalize_custom_data(
+            membership.company,
+            FieldEntity.INVITATION,
+            payload.get("custom_data") if "custom_data" in payload else None,
+            creating=True,
+            existing={},
+            permission_codes=codes,
+        )
         token = secrets.token_urlsafe(32)
+        _send_invitation_email(email=email, token=token)
         invitation = MembershipInvitation.objects.create(
             company_id=company_id,
             email=email,
             token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),
             invited_by=request.user,
             expires_at=timezone.now() + timedelta(days=7),
-        )
-        send_mail(
-            "Join a Pulse company",
-            f"Open {settings.CORS_ALLOWED_ORIGINS[0] if getattr(settings, 'CORS_ALLOWED_ORIGINS', None) else 'http://localhost:5173'}/invitations/accept?token={token}",
-            getattr(settings, "DEFAULT_FROM_EMAIL", None) or "noreply@pulse.local",
-            [email],
-            fail_silently=True,
+            custom_data=custom_data,
         )
         AuditLog.objects.create(
             company_id=company_id,
@@ -259,11 +440,11 @@ class InvitationListView(APIView):
             action="membership.invited",
             object_type="membership_invitation",
             object_id=invitation.id,
-            after={"email": email},
+            after={"email": email, "custom_data": custom_data},
             ip_address=_ip(request),
             request_id=_request_id(request),
         )
-        return Response({"id": str(invitation.id), "email": email, "status": invitation.status}, status=201)
+        return Response(_invitation_payload(invitation, permission_codes=codes), status=201)
 
 
 class InvitationActionView(APIView):
@@ -292,66 +473,62 @@ class InvitationActionView(APIView):
                         request_id=_request_id(request),
                     )
         elif action == "resend":
+            if invitation.status == InvitationStatus.ACCEPTED:
+                raise conflict("That invitation was already accepted.")
+            if invitation.status == InvitationStatus.REVOKED:
+                raise conflict("That invitation was revoked. Send a new invitation instead.")
             token = secrets.token_urlsafe(32)
+            # Deliver first so a failed send does not invalidate the previous link.
+            _send_invitation_email(email=invitation.email, token=token)
             invitation.token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
             invitation.status = InvitationStatus.PENDING
             invitation.expires_at = timezone.now() + timedelta(days=7)
             invitation.save(update_fields=["token_hash", "status", "expires_at", "updated_at"])
+            AuditLog.objects.create(
+                company_id=company_id,
+                actor=request.user,
+                action="membership.invitation_resent",
+                object_type="membership_invitation",
+                object_id=invitation.id,
+                after={"email": invitation.email},
+                ip_address=_ip(request),
+                request_id=_request_id(request),
+            )
         else:
             raise not_found()
         return Response({"id": str(invitation.id), "status": invitation.status})
+
+
+class InvitationPreviewView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(preview_invitation(request.query_params.get("token")))
+
+
+class InvitationJoinView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        payload = join_with_invitation(
+            request=request,
+            token=request.data.get("token"),
+            password=request.data.get("password"),
+        )
+        remember_active_company(request, payload["company_id"])
+        return Response(payload)
 
 
 class InvitationAcceptView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        token = request.data.get("token")
-        if not isinstance(token, str) or not token.strip():
-            raise validation_error([{"field": "token", "code": "required", "message": "This invitation link is not valid."}])
-        token_hash = hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
-        invitation = MembershipInvitation.objects.select_related("company").filter(token_hash=token_hash).first()
-        if invitation is None or invitation.status != InvitationStatus.PENDING or invitation.expires_at < timezone.now():
-            raise conflict("This invitation is no longer valid.")
-        if invitation.email != request.user.email:
-            raise permission_denied("Sign in with the invited email address.")
-        if request.user.email_verified_at is None:
-            raise permission_denied("Verify your email address before accepting.")
-        with transaction.atomic():
-            membership, _created = CompanyMembership.objects.get_or_create(
-                company=invitation.company,
-                user=request.user,
-                defaults={"status": MembershipStatus.ACTIVE, "joined_at": timezone.now()},
-            )
-            membership.status = MembershipStatus.ACTIVE
-            membership.joined_at = membership.joined_at or timezone.now()
-            if membership.person_id is None:
-                membership.person = Person.objects.create(
-                    company=invitation.company,
-                    first_name=request.user.first_name,
-                    last_name=request.user.last_name,
-                    work_email=request.user.email,
-                    status=PersonStatus.ACTIVE,
-                )
-            membership.save()
-            employee = CompanyRole.objects.filter(company=invitation.company, template_code="employee").first()
-            if employee:
-                MembershipRoleAssignment.objects.get_or_create(membership=membership, role=employee, assigned_by=request.user)
-            invitation.status = InvitationStatus.ACCEPTED
-            invitation.accepted_by = request.user
-            invitation.save(update_fields=["status", "accepted_by", "updated_at"])
-            AuditLog.objects.create(
-                company=invitation.company,
-                actor=request.user,
-                action="membership.invitation_accepted",
-                object_type="membership_invitation",
-                object_id=invitation.id,
-                before={"status": InvitationStatus.PENDING, "email": invitation.email},
-                after={"status": invitation.status, "email": invitation.email, "membership_id": str(membership.id)},
-                ip_address=_ip(request),
-                request_id=_request_id(request),
-            )
-        return Response({"company_id": str(invitation.company_id)})
+        invitation = load_pending_invitation(request.data.get("token"))
+        result = accept_invitation(request=request, invitation=invitation, user=request.user)
+        remember_active_company(request, result["company_id"])
+        return Response(result)
 
 
 class MembershipStatusView(APIView):
@@ -436,41 +613,13 @@ class CompanySettingsView(APIView):
 
     def get(self, request, company_id):
         membership = require_permission(request.user, company_id, "company.view")
-        company = membership.company
-        billing = getattr(company, "billing_profile", None)
-        return Response(
-            {
-                "legal_name": company.legal_name,
-                "display_name": company.display_name,
-                "slug": company.slug,
-                "timezone": company.timezone,
-                "subscription": subscription_summary(company),
-                "billing_name": billing.billing_name if billing else "",
-                "billing_email": billing.billing_email if billing else "",
-            }
-        )
+        codes = effective_permission_codes(membership)
+        return Response(company_settings_payload(membership.company, permission_codes=codes))
 
     def patch(self, request, company_id):
         membership = require_permission(request.user, company_id, "company.update")
-        company = membership.company
-        display_name = request.data.get("display_name")
-        timezone_name = request.data.get("timezone")
-        if isinstance(display_name, str) and display_name.strip():
-            company.display_name = display_name.strip()[:255]
-        if isinstance(timezone_name, str) and timezone_name.strip():
-            company.timezone = timezone_name.strip()[:64]
-        company.save(update_fields=["display_name", "timezone", "updated_at"])
-        AuditLog.objects.create(
-            company=company,
-            actor=request.user,
-            action="company.updated",
-            object_type="company",
-            object_id=company.id,
-            after={"display_name": company.display_name, "timezone": company.timezone},
-            ip_address=_ip(request),
-            request_id=_request_id(request),
-        )
-        return Response({"saved": True})
+        payload = update_company_settings(company=membership.company, payload=request.data, request=request)
+        return Response({"saved": True, **payload})
 
 
 class AuditListView(APIView):

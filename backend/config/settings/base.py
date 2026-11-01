@@ -42,8 +42,12 @@ INSTALLED_APPS = [
     "apps.audit",
     "apps.billing",
     "apps.organization",
+    "apps.parties",
     "apps.modules_registry",
     "apps.hrms",
+    "apps.projects",
+    "apps.crm",
+    "apps.commerce",
     "apps.dashboards",
     "apps.platform_admin",
 ]

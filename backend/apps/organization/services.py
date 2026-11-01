@@ -4,12 +4,15 @@ import uuid
 
 from django.db import IntegrityError, connection, transaction
 from django.db.models import Count
+from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.organization.models import Department, OrganizationUnitType, Person, PersonStatus, UnitStatus
-from apps.tenants.models import CompanyMembership, MembershipStatus
+from apps.tenants.custom_data_access import serialize_custom_data
+from apps.tenants.custom_fields import normalize_custom_data
+from apps.tenants.models import CompanyMembership, FieldEntity, MembershipStatus
 from apps.tenants.services import _ip, _request_id
-from common.api.errors import conflict, not_found, validation_error
+from common.api.errors import conflict, not_found, permission_denied, validation_error
 
 _KEY = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -66,10 +69,20 @@ def _person_name(person):
     return name or person.work_email or str(person.id)
 
 
-def _unit_payload(row):
+def _unit_payload(row, *, permission_codes=None):
     manager = row.manager if row.manager_id else None
     annotated = row.__dict__.get("member_count")
     member_count = annotated if annotated is not None else (row.people.count() if row.pk else 0)
+    custom_data = dict(row.custom_data or {})
+    if permission_codes is not None:
+        from apps.tenants.custom_data_access import load_active_definitions
+
+        custom_data = serialize_custom_data(
+            load_active_definitions(row.company, FieldEntity.ORGANIZATION_UNIT),
+            custom_data,
+            entity=FieldEntity.ORGANIZATION_UNIT,
+            permission_codes=permission_codes,
+        )
     return {
         "id": str(row.id),
         "key": row.key or "",
@@ -81,6 +94,7 @@ def _unit_payload(row):
         "manager_id": str(row.manager_id) if row.manager_id else None,
         "manager_name": _person_name(manager) if manager else "",
         "member_count": member_count,
+        "custom_data": custom_data,
     }
 
 
@@ -93,10 +107,43 @@ def _unit_state(row):
         "parent_id": str(row.parent_id) if row.parent_id else None,
         "unit_type_id": str(row.unit_type_id) if row.unit_type_id else None,
         "manager_id": str(row.manager_id) if row.manager_id else None,
+        "custom_data": dict(row.custom_data or {}),
     }
 
 
+DEFAULT_UNIT_TYPES = (
+    ("division", "Division", "Divisions", 0),
+    ("department", "Department", "Departments", 1),
+    ("team", "Team", "Teams", 2),
+)
+
+
+def ensure_default_unit_types(company) -> None:
+    """Create Division / Department / Team once when a company has no unit types."""
+    if OrganizationUnitType.objects.filter(company=company).exists():
+        return
+    with transaction.atomic():
+        _lock_company(company.id)
+        if OrganizationUnitType.objects.filter(company=company).exists():
+            return
+        OrganizationUnitType.objects.bulk_create(
+            [
+                OrganizationUnitType(
+                    company=company,
+                    key=key,
+                    singular_label=singular,
+                    plural_label=plural,
+                    position=position,
+                    is_active=True,
+                    allowed_parent_keys=[],
+                )
+                for key, singular, plural, position in DEFAULT_UNIT_TYPES
+            ]
+        )
+
+
 def list_organization(company, include_people):
+    ensure_default_unit_types(company)
     types = [_type_payload(row) for row in OrganizationUnitType.objects.filter(company=company)]
     units = [
         _unit_payload(row)
@@ -302,6 +349,24 @@ def _apply_unit(request, company, payload, existing=None):
             raise conflict("That unit name is already in use.", [{"field": "name", "code": "duplicate", "message": "That unit name is already in use."}])
         _assert_parent(row, parent, unit_type, locked)
         before = None if creating else _unit_state(row)
+        from apps.authorization.company import effective_permission_codes
+        from apps.tenants.models import CompanyMembership as _CM
+        from apps.tenants.models import MembershipStatus as _MS
+
+        membership = (
+            _CM.objects.filter(company=company, user=request.user, status=_MS.ACTIVE).first()
+            if getattr(request, "user", None) and request.user.is_authenticated
+            else None
+        )
+        codes = effective_permission_codes(membership) if membership else set()
+        custom_data = normalize_custom_data(
+            company,
+            FieldEntity.ORGANIZATION_UNIT,
+            payload.get("custom_data") if "custom_data" in payload else None,
+            creating=creating,
+            existing=None if creating else (row.custom_data or {}),
+            permission_codes=codes,
+        )
         if creating:
             row = Department(company=company)
         row.name = name
@@ -311,6 +376,7 @@ def _apply_unit(request, company, payload, existing=None):
         row.unit_type = unit_type
         row.manager = manager
         row.status = status
+        row.custom_data = custom_data
         after = _unit_state(row)
         if before == after:
             return row
@@ -338,6 +404,23 @@ def update_unit(request, company, unit_id, payload):
     if existing is None:
         raise not_found("That organization unit was not found.")
     return _apply_unit(request, company, payload, existing)
+
+
+def delete_unit(request, company, unit_id):
+    """Soft-delete: deactivate the unit. Hard delete is not supported."""
+    with transaction.atomic():
+        _lock_company(company.id)
+        row = Department.objects.select_for_update().filter(company=company, pk=unit_id).first()
+        if row is None:
+            raise not_found("That organization unit was not found.")
+        if row.status == UnitStatus.INACTIVE:
+            return row
+        before = _unit_state(row)
+        row.status = UnitStatus.INACTIVE
+        row.save(update_fields=["status", "updated_at"])
+        after = _unit_state(row)
+        _audit(request, company, "organization_unit.deactivated", "organization_unit", row.id, before, after)
+        return row
 
 
 def assign_members(request, company, unit_id, person_ids):
@@ -384,16 +467,30 @@ def _membership_bits(membership):
     return {
         "membership_id": str(membership.id),
         "membership_status": membership.status,
-        "roles": [{"id": str(item.role_id), "name": item.role.name} for item in membership.role_assignments.all()],
+        "roles": [
+            {"id": str(item.role_id), "name": item.role.name, "is_owner_role": item.role.is_owner_role}
+            for item in membership.role_assignments.all()
+        ],
         "permissions": sorted(effective_permission_codes(membership)),
         "last_login": membership.user.last_login.isoformat() if membership.user.last_login else None,
         "email": membership.user.email,
     }
 
 
-def _directory_row(person, membership, company_name):
+def _directory_row(person, membership, company_name, *, permission_codes=None, viewer_person_id=None):
     bits = _membership_bits(membership)
     email = bits.pop("email") or person.work_email
+    custom_data = dict(person.custom_data or {})
+    if permission_codes is not None:
+        from apps.tenants.custom_data_access import load_active_definitions
+
+        custom_data = serialize_custom_data(
+            load_active_definitions(person.company, FieldEntity.PERSON),
+            custom_data,
+            entity=FieldEntity.PERSON,
+            permission_codes=permission_codes,
+            is_self=viewer_person_id is not None and str(person.id) == str(viewer_person_id),
+        )
     return {
         "id": str(person.id),
         "person_id": str(person.id),
@@ -404,11 +501,12 @@ def _directory_row(person, membership, company_name):
         "status": person.status,
         "organization": person.department.name if person.department_id else company_name,
         "department_id": str(person.department_id) if person.department_id else None,
+        "custom_data": custom_data,
         **bits,
     }
 
 
-def list_people(company):
+def list_people(company, *, status: str | None = PersonStatus.ACTIVE, permission_codes=None, viewer_person_id=None):
     memberships = list(
         CompanyMembership.objects.filter(company=company)
         .exclude(status=MembershipStatus.REMOVED)
@@ -420,22 +518,35 @@ def list_people(company):
     for membership in memberships:
         if membership.person_id:
             by_person.setdefault(membership.person_id, membership)
-        by_email.setdefault(membership.user.email, membership)
+        by_email.setdefault(membership.user.email.lower(), membership)
     used = set()
     results = []
     people = Person.objects.filter(company=company).select_related("department").order_by("last_name", "first_name", "id")
+    if status and status != "all":
+        people = people.filter(status=status)
     for person in people:
         membership = by_person.get(person.id)
         if membership is None and person.work_email:
-            membership = by_email.get(person.work_email.lower())
+            membership = by_email.get(person.work_email.strip().lower())
         if membership is not None:
             used.add(membership.id)
-        results.append(_directory_row(person, membership, company.display_name))
+        results.append(
+            _directory_row(
+                person,
+                membership,
+                company.display_name,
+                permission_codes=permission_codes,
+                viewer_person_id=viewer_person_id,
+            )
+        )
     for membership in memberships:
         if membership.id in used:
             continue
         bits = _membership_bits(membership)
         email = bits.pop("email")
+        custom_data = dict(membership.custom_data or {}) if hasattr(membership, "custom_data") else {}
+        if permission_codes is not None and membership.person_id is None:
+            custom_data = {}
         results.append(
             {
                 "id": str(membership.id),
@@ -447,14 +558,27 @@ def list_people(company):
                 "status": "active",
                 "organization": company.display_name,
                 "department_id": None,
+                "custom_data": custom_data,
                 **bits,
             }
         )
     return results
 
 
-def person_directory_row(company, person):
-    match = next((row for row in list_people(company) if row["person_id"] == str(person.id)), None)
+def person_directory_row(company, person, *, permission_codes=None, viewer_person_id=None):
+    match = next(
+        (
+            row
+            for row in list_people(
+                company,
+                status="all",
+                permission_codes=permission_codes,
+                viewer_person_id=viewer_person_id,
+            )
+            if row["person_id"] == str(person.id)
+        ),
+        None,
+    )
     if match is None:
         raise not_found("That person was not found.")
     return match
@@ -474,23 +598,188 @@ def create_person(request, company, payload):
         last = " ".join(parts[1:])
     first = first.strip()[:150]
     last = last.strip()[:150] if isinstance(last, str) else ""
+    if not first:
+        _invalid("name", "Enter a name.")
+
     raw_email = payload.get("work_email", "")
-    if raw_email in (None, ""):
-        email = ""
-    elif not isinstance(raw_email, str) or "@" not in raw_email:
+    if not isinstance(raw_email, str) or not raw_email.strip():
         _invalid("work_email", "Enter an email address.")
-    else:
-        email = raw_email.strip().lower()
+    email = raw_email.strip().lower()
+    if "@" not in email or "." not in email.split("@", 1)[-1] or " " in email:
+        _invalid("work_email", "Enter a valid email address.")
+    if Person.objects.filter(company=company, work_email__iexact=email).exists():
+        raise conflict(
+            "A person with that email already exists.",
+            [{"field": "work_email", "code": "unique", "message": "A person with that email already exists."}],
+        )
+
     title = payload.get("job_title", "")
-    if not isinstance(title, str):
-        _invalid("job_title", "Enter a job title.")
-    person = Person.objects.create(
-        company=company,
-        first_name=first,
-        last_name=last,
-        work_email=email,
-        job_title=title.strip()[:150],
-        status=PersonStatus.ACTIVE,
+    if not isinstance(title, str) or not title.strip():
+        _invalid("job_title", "Enter a designation.")
+    job_title = title.strip()[:150]
+    from apps.authorization.company import effective_permission_codes
+
+    actor_membership = (
+        CompanyMembership.objects.filter(company=company, user=request.user, status=MembershipStatus.ACTIVE).first()
+        if getattr(request, "user", None) and request.user.is_authenticated
+        else None
     )
-    _audit(request, company, "person.created", "person", person.id, None, {"name": _person_name(person), "work_email": email, "job_title": person.job_title})
+    codes = effective_permission_codes(actor_membership) if actor_membership else set()
+    custom_data = normalize_custom_data(
+        company,
+        FieldEntity.PERSON,
+        payload.get("custom_data") if "custom_data" in payload else None,
+        creating=True,
+        existing={},
+        permission_codes=codes,
+        is_self=False,
+    )
+
+    try:
+        person = Person.objects.create(
+            company=company,
+            first_name=first,
+            last_name=last,
+            work_email=email,
+            job_title=job_title,
+            status=PersonStatus.ACTIVE,
+            custom_data=custom_data,
+        )
+    except IntegrityError as exc:
+        if "people_company_work_email_unique" in str(exc):
+            raise conflict(
+                "A person with that email already exists.",
+                [{"field": "work_email", "code": "unique", "message": "A person with that email already exists."}],
+            ) from exc
+        raise
+    _audit(
+        request,
+        company,
+        "person.created",
+        "person",
+        person.id,
+        None,
+        {"name": _person_name(person), "work_email": email, "job_title": person.job_title, "custom_data": custom_data},
+    )
+    return person
+
+
+def update_person(request, company, person_id, payload):
+    if not isinstance(payload, dict):
+        _invalid("", "Send a JSON object.")
+    person = Person.objects.filter(company=company, pk=person_id).first()
+    if person is None:
+        raise not_found("That person was not found.")
+
+    from apps.authorization.company import effective_permission_codes
+
+    actor_membership = (
+        CompanyMembership.objects.filter(company=company, user=request.user, status=MembershipStatus.ACTIVE)
+        .select_related("person")
+        .first()
+        if getattr(request, "user", None) and request.user.is_authenticated
+        else None
+    )
+    codes = effective_permission_codes(actor_membership) if actor_membership else set()
+    is_self = bool(actor_membership and actor_membership.person_id and actor_membership.person_id == person.id)
+    has_people_update = "people.update" in codes
+
+    before = {
+        "first_name": person.first_name,
+        "last_name": person.last_name,
+        "work_email": person.work_email,
+        "job_title": person.job_title,
+        "department_id": str(person.department_id) if person.department_id else None,
+        "custom_data": dict(person.custom_data or {}),
+    }
+
+    if has_people_update:
+        if "first_name" in payload:
+            first = payload.get("first_name")
+            if not isinstance(first, str) or not first.strip():
+                _invalid("first_name", "Enter a first name.")
+            person.first_name = first.strip()[:150]
+        if "last_name" in payload:
+            last = payload.get("last_name")
+            if last is None:
+                last = ""
+            if not isinstance(last, str):
+                _invalid("last_name", "Enter a last name.")
+            person.last_name = last.strip()[:150]
+        if "job_title" in payload:
+            title = payload.get("job_title")
+            if not isinstance(title, str) or not title.strip():
+                _invalid("job_title", "Enter a designation.")
+            person.job_title = title.strip()[:150]
+        if "department_id" in payload:
+            dept_id = payload.get("department_id")
+            if dept_id in (None, ""):
+                person.department = None
+            else:
+                department = Department.objects.filter(company=company, pk=dept_id).first()
+                if department is None:
+                    raise not_found("That organization unit was not found.")
+                person.department = department
+        if "work_email" in payload:
+            raw_email = payload.get("work_email")
+            if not isinstance(raw_email, str) or not raw_email.strip():
+                _invalid("work_email", "Enter an email address.")
+            email = raw_email.strip().lower()
+            if "@" not in email or "." not in email.split("@", 1)[-1] or " " in email:
+                _invalid("work_email", "Enter a valid email address.")
+            clash = Person.objects.filter(company=company, work_email__iexact=email).exclude(pk=person.pk).exists()
+            if clash:
+                raise conflict(
+                    "A person with that email already exists.",
+                    [{"field": "work_email", "code": "unique", "message": "A person with that email already exists."}],
+                )
+            person.work_email = email
+
+    if "custom_data" in payload:
+        if not has_people_update and not is_self:
+            raise permission_denied("You do not have permission to update this person.")
+        person.custom_data = normalize_custom_data(
+            company,
+            FieldEntity.PERSON,
+            payload.get("custom_data"),
+            creating=False,
+            existing=person.custom_data or {},
+            permission_codes=codes,
+            is_self=is_self and not has_people_update,
+        )
+    elif not has_people_update:
+        raise permission_denied("You do not have permission to update this person.")
+
+    person.save()
+    after = {
+        "first_name": person.first_name,
+        "last_name": person.last_name,
+        "work_email": person.work_email,
+        "job_title": person.job_title,
+        "department_id": str(person.department_id) if person.department_id else None,
+        "custom_data": dict(person.custom_data or {}),
+    }
+    if before != after:
+        _audit(request, company, "person.updated", "person", person.id, before, after)
+    return person
+
+
+def set_person_status(request, company, person_id, status: str):
+    if status not in {PersonStatus.ACTIVE, PersonStatus.INACTIVE}:
+        _invalid("status", "Choose active or inactive.")
+    person = Person.objects.filter(company=company, pk=person_id).first()
+    if person is None:
+        raise not_found("That person was not found.")
+    if person.status == status:
+        return person
+    before = {"status": person.status, "deactivated_at": person.deactivated_at.isoformat() if person.deactivated_at else None}
+    person.status = status
+    if status == PersonStatus.INACTIVE:
+        person.deactivated_at = timezone.now()
+    else:
+        person.deactivated_at = None
+    person.save(update_fields=["status", "deactivated_at", "updated_at"])
+    after = {"status": person.status, "deactivated_at": person.deactivated_at.isoformat() if person.deactivated_at else None}
+    action = "person.deactivated" if status == PersonStatus.INACTIVE else "person.activated"
+    _audit(request, company, action, "person", person.id, before, after)
     return person

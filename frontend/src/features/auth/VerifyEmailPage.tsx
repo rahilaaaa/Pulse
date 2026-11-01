@@ -31,7 +31,7 @@ export function VerifyEmailPage() {
           </Link>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-xl bg-teal-50 px-4 py-3 text-sm text-teal-900">
+            <div className="rounded-xl bg-teal-50 dark:bg-teal-950 px-4 py-3 text-sm text-teal-900 dark:text-teal-100">
               <p className="font-semibold">Waiting for verification</p>
               <p className="mt-1 text-teal-800">This page confirms the link from your email.</p>
             </div>
@@ -39,7 +39,7 @@ export function VerifyEmailPage() {
             <Button type="button" className="w-full rounded-lg py-2.5" disabled={!token || confirm.isPending} onClick={() => confirm.mutate()}>
               {confirm.isPending ? "Verifying" : "Verify email"}
             </Button>
-            {!token ? <p className="text-sm text-slate-600">This page needs the token from the verification link.</p> : null}
+            {!token ? <p className="text-sm text-slate-600 dark:text-slate-300">This page needs the token from the verification link.</p> : null}
           </div>
         )}
       </AuthCard>

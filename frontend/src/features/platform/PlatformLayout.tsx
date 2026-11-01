@@ -4,6 +4,7 @@ import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { api, clearCsrfToken } from "../../shared/api/client";
 import type { CurrentUser } from "../../shared/api/types";
+import { ThemeToggle } from "../../shared/theme/ThemeToggle";
 import { Button } from "../../shared/ui/Button";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 
@@ -33,14 +34,14 @@ export function PlatformLayout() {
   const user = current.data;
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[16rem_1fr]">
-      <aside className="bg-slate-950 text-slate-100 lg:min-h-screen">
+    <div className="min-h-screen bg-pulse-canvas lg:grid lg:grid-cols-[16rem_1fr]">
+      <aside className="pulse-chrome-sidebar lg:min-h-screen">
         <div className="flex items-center justify-between px-4 py-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-teal-300">Pulse</p>
             <p className="text-lg font-semibold">Platform</p>
           </div>
-          <button className="rounded-md border border-slate-700 px-2 py-1 text-sm lg:hidden" type="button" onClick={() => setOpen((value) => !value)}>
+          <button className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 lg:hidden" type="button" onClick={() => setOpen((value) => !value)}>
             Menu
           </button>
         </div>
@@ -51,7 +52,7 @@ export function PlatformLayout() {
               to={item.to}
               end={item.end}
               className={({ isActive }) =>
-                `block rounded-md px-3 py-2 text-sm ${isActive ? "bg-teal-800 text-white" : "text-slate-300 hover:bg-slate-800"}`
+                `block rounded-md px-3 py-2 text-sm transition ${isActive ? "bg-teal-600 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`
               }
               onClick={() => setOpen(false)}
             >
@@ -61,32 +62,35 @@ export function PlatformLayout() {
         </nav>
       </aside>
       <div className="min-w-0">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
-          <p className="text-sm text-slate-500">Operator console</p>
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <Button variant="secondary" type="button">
-                {user?.email ?? "Account"}
-              </Button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content className="z-20 min-w-56 rounded-md border border-slate-200 bg-white p-2 shadow-lg" align="end">
-                <p className="px-2 py-1 text-xs text-slate-500">Signed in</p>
-                <p className="px-2 pb-2 text-sm text-slate-800">{user?.email}</p>
-                <ConfirmDialog
-                  title="Sign out"
-                  body="This ends the platform session on this browser."
-                  confirmLabel="Sign out"
-                  onConfirm={() => logout.mutate()}
-                  trigger={
-                    <button className="w-full rounded-md px-2 py-2 text-left text-sm text-slate-800 hover:bg-slate-100" type="button">
-                      Sign out
-                    </button>
-                  }
-                />
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
+        <header className="flex items-center justify-between gap-3 border-b border-pulse-border bg-pulse-surface px-4 py-3 sm:px-6">
+          <p className="text-sm text-pulse-muted">Operator console</p>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <Button variant="secondary" type="button">
+                  {user?.email ?? "Account"}
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="z-20 min-w-56 rounded-md border border-pulse-border bg-pulse-surface p-2 shadow-lg" align="end">
+                  <p className="px-2 py-1 text-xs text-pulse-muted">Signed in</p>
+                  <p className="px-2 pb-2 text-sm text-pulse-ink">{user?.email}</p>
+                  <ConfirmDialog
+                    title="Sign out"
+                    body="This ends the platform session on this browser."
+                    confirmLabel="Sign out"
+                    onConfirm={() => logout.mutate()}
+                    trigger={
+                      <button className="w-full rounded-md px-2 py-2 text-left text-sm text-pulse-ink hover:bg-pulse-hover" type="button">
+                        Sign out
+                      </button>
+                    }
+                  />
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>
         </header>
         <main className="px-4 py-6 sm:px-6">
           <Outlet />

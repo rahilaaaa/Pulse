@@ -1,6 +1,6 @@
 # 06 — Multi-Tenancy and Security
 
-Status: approved planning baseline. Application-level isolation ships with each feature. PostgreSQL Row-Level Security is a mandatory defense-in-depth control before the first production customer and is specified here so it is not redesigned later.
+Status: planning baseline with Phase 0 implementation notes. Application-level isolation ships with each feature. PostgreSQL Row-Level Security is specified here as defense in depth before the first production customer (ADR-016). **RLS is not approved for immediate implementation or enablement.** Completing ADR-021 (tenant-integrity gate before Projects/CRM) does not by itself authorize turning RLS on.
 
 ## 1. Tenant model
 
@@ -9,6 +9,8 @@ One PostgreSQL database and one shared schema. Every tenant-owned row carries `c
 A global user is not a tenant. Memberships attach that user to companies. People belong to one company. The same human who works at two companies has one `users` row, two memberships, and two person rows.
 
 **Assumption:** users may belong to multiple companies in the MVP data model. The onboarding UI can still feel like a single company. The API never infers the tenant from the user id alone.
+
+**As built:** `company_id` filtering and membership checks are Implemented on current company APIs. Composite foreign keys and RLS are not applied in the live Django schema. See [14-implementation-status.md](14-implementation-status.md).
 
 ## 2. Request context
 
@@ -36,7 +38,9 @@ Background tasks copy `company_id` onto `background_tasks` and set the same cont
 
 ## 3. Cross-tenant integrity
 
-Composite foreign keys in [schema.dbml](schema.dbml) reject a child that names another company's parent. Examples: a person and their department, a membership and its person, an invoice line and its subscription item, a leave request and its policy.
+Composite foreign keys in the **intended** [schema.dbml](schema.dbml) reject a child that names another company's parent. Examples: a person and their department, a membership and its person, an invoice line and its subscription item, a leave request and its policy.
+
+**As built:** Django uses ordinary foreign keys. Applying appropriate composite constraints, auditing existing cross-tenant references, expanding isolation tests, and application record scopes are part of **ADR-021** before Project Management or CRM implementation. Field-level migration design still requires review.
 
 Unique constraints that must not be global are scoped: department name, employee code, role name, and one pending invitation per email, all per `company_id`. Email on `users` stays globally unique because login identity is global.
 
@@ -44,7 +48,9 @@ Object reads use the company id in the `WHERE` clause and then check permission.
 
 ## 4. Row-Level Security
 
-**Mandatory security requirement before the first production customer.** RLS is not the control the four-week MVP is required to finish, and production onboarding of a real customer waits until the prerequisites below are met.
+**Mandatory security requirement before the first production customer (ADR-016).** RLS is not the control the four-week MVP is required to finish, and production onboarding of a real customer waits until the prerequisites below are met.
+
+**Phase 0 / ADR-021 clarification:** RLS enablement is a **separate readiness and rollout decision**. Do not treat ADR-021’s Projects/CRM gate as approval to implement or force-enable RLS. Scaffolding timing versus enable-only-at-gate remains Unresolved (§ unresolved list in [12-architecture-decisions.md](12-architecture-decisions.md)).
 
 ### 4.1 Why it is justified
 
@@ -84,7 +90,7 @@ Tables without `company_id` do not get a tenant policy. Provider events are inse
 - Adding a new tenant table without a policy is a release checklist item. A migration test can fail when a table has `company_id` and RLS is not enabled.
 - Performance: the policy predicate must be indexable. `company_id` indexes already required by the application queries serve that predicate. Cast failures on a malformed setting should error rather than scan.
 
-Until RLS is on, the mandatory substitute is the tenant queryset, composite foreign keys, and the cross-tenant tests in section 8.
+Until RLS is on, the mandatory substitute is the tenant queryset, composite foreign keys (when applied), and the cross-tenant tests in section 8. **As built today:** rely on application filters and existing tests; composite FKs and full test matrix are still incomplete (ADR-021).
 
 ## 5. Threat model and required controls
 

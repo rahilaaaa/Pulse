@@ -28,26 +28,26 @@ export function BillingPage() {
   return (
     <div className="max-w-3xl space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Billing & Plan</h1>
-        <p className="mt-1 text-sm text-slate-500">The subscription and billing contact for {data.display_name}.</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Billing & Plan</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">The subscription and billing contact for {data.display_name}.</p>
       </div>
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm text-slate-500">Current plan</p>
-            <p className="text-xl font-semibold text-slate-900">{plan ? plan.plan_name : "No plan"}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Current plan</p>
+            <p className="text-xl font-semibold text-slate-900 dark:text-slate-100">{plan ? plan.plan_name : "No plan"}</p>
           </div>
           {plan ? <StatusBadge status={plan.status} /> : null}
         </div>
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-          <div><dt className="text-slate-500">Billing interval</dt><dd className="font-medium text-slate-900">{plan?.billing_interval ?? "—"}</dd></div>
-          <div><dt className="text-slate-500">Trial ends</dt><dd className="font-medium text-slate-900">{plan?.trial_ends_at ? new Date(plan.trial_ends_at).toLocaleDateString() : "—"}</dd></div>
-          <div><dt className="text-slate-500">Billing contact</dt><dd className="font-medium text-slate-900">{data.billing_name || "—"}</dd></div>
-          <div><dt className="text-slate-500">Billing email</dt><dd className="font-medium text-slate-900">{data.billing_email || "—"}</dd></div>
-          <div><dt className="text-slate-500">Legal name</dt><dd className="font-medium text-slate-900">{data.legal_name}</dd></div>
-          <div><dt className="text-slate-500">Workspace</dt><dd className="font-medium text-slate-900">{data.slug}</dd></div>
+          <div><dt className="text-slate-500 dark:text-slate-400">Billing interval</dt><dd className="font-medium text-slate-900 dark:text-slate-100">{plan?.billing_interval ?? "—"}</dd></div>
+          <div><dt className="text-slate-500 dark:text-slate-400">Trial ends</dt><dd className="font-medium text-slate-900 dark:text-slate-100">{plan?.trial_ends_at ? new Date(plan.trial_ends_at).toLocaleDateString() : "—"}</dd></div>
+          <div><dt className="text-slate-500 dark:text-slate-400">Billing contact</dt><dd className="font-medium text-slate-900 dark:text-slate-100">{data.billing_name || "—"}</dd></div>
+          <div><dt className="text-slate-500 dark:text-slate-400">Billing email</dt><dd className="font-medium text-slate-900 dark:text-slate-100">{data.billing_email || "—"}</dd></div>
+          <div><dt className="text-slate-500 dark:text-slate-400">Legal name</dt><dd className="font-medium text-slate-900 dark:text-slate-100">{data.legal_name}</dd></div>
+          <div><dt className="text-slate-500 dark:text-slate-400">Workspace</dt><dd className="font-medium text-slate-900 dark:text-slate-100">{data.slug}</dd></div>
         </dl>
-        <Link to="/app/settings" className="mt-4 inline-flex text-sm font-medium text-teal-800">Edit workspace settings</Link>
+        <Link to="/app/settings?section=company" className="mt-4 inline-flex text-sm font-medium text-teal-800">Edit company information</Link>
       </section>
     </div>
   );

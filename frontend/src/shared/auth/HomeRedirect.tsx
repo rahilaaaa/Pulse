@@ -21,6 +21,9 @@ export function HomeRedirect() {
   if (current.data.platform_permissions.includes("platform.companies.view")) {
     return <Navigate to="/platform" replace />;
   }
+  if (current.data.memberships.length > 0) {
+    return <Navigate to="/app" replace />;
+  }
   return <CompanyHome />;
 }
 

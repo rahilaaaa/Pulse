@@ -8,20 +8,28 @@ import { VerifyEmailPage } from "../features/auth/VerifyEmailPage";
 import { WelcomePage } from "../features/auth/WelcomePage";
 import { AuditLogsPage } from "../features/platform/AuditLogsPage";
 import { CompaniesPage } from "../features/platform/CompaniesPage";
+import { CompanyDetailPage } from "../features/platform/CompanyDetailPage";
 import { OverviewPage } from "../features/platform/OverviewPage";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
 import { RecordsPage } from "../features/platform/RecordsPage";
+import { UserDetailPage } from "../features/platform/UserDetailPage";
 import { UsersPage } from "../features/platform/UsersPage";
 import { OnboardingPage } from "../features/onboarding/OnboardingPage";
 import { AcceptInvitePage } from "../features/workspace/AcceptInvitePage";
 import { AuditPage } from "../features/workspace/AuditPage";
 import { BillingPage } from "../features/workspace/BillingPage";
+import { CommercePage } from "../features/workspace/CommercePage";
+import { CrmPage } from "../features/workspace/CrmPage";
 import { LeavePage } from "../features/workspace/LeavePage";
 import { ModulesPage } from "../features/workspace/ModulesPage";
 import { NotificationsPage } from "../features/workspace/NotificationsPage";
 import { OrganizationPage } from "../features/workspace/OrganizationPage";
 import { OverviewPage as CompanyOverviewPage } from "../features/workspace/OverviewPage";
+import { PartiesPage } from "../features/workspace/PartiesPage";
+import { ProjectsPage } from "../features/workspace/ProjectsPage";
 import { RolesPage } from "../features/workspace/RolesPage";
+import { CustomEntityRecordsPage } from "../features/workspace/CustomEntityRecordsPage";
+import { CustomEntitiesIndexPage } from "../features/workspace/CustomEntitiesIndexPage";
 import { SettingsPage } from "../features/workspace/SettingsPage";
 import { StudioPage } from "../features/workspace/StudioPage";
 import { PeoplePage } from "../features/workspace/UsersPage";
@@ -41,9 +49,9 @@ export function AppRoutes() {
       <Route path="/privacy" element={<NoticePage kind="privacy" />} />
       <Route path="/terms" element={<NoticePage kind="terms" />} />
       <Route path="/security" element={<NoticePage kind="security" />} />
+      <Route path="/invitations/accept" element={<AcceptInvitePage />} />
       <Route element={<RequireSession />}>
         <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/invitations/accept" element={<AcceptInvitePage />} />
         <Route path="/app" element={<WorkspaceLayout />}>
           <Route index element={<CompanyOverviewPage />} />
           <Route path="people" element={<PeoplePage />} />
@@ -55,13 +63,21 @@ export function AppRoutes() {
           <Route path="studio" element={<StudioPage />} />
           <Route path="modules" element={<ModulesPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="custom-entities" element={<CustomEntitiesIndexPage />} />
+          <Route path="custom-entities/:entityId" element={<CustomEntityRecordsPage />} />
           <Route path="audit" element={<AuditPage />} />
           <Route path="hrms" element={<LeavePage />} />
+          <Route path="parties" element={<PartiesPage />} />
+          <Route path="projects" element={<ProjectsPage />} />
+          <Route path="crm" element={<CrmPage />} />
+          <Route path="commerce" element={<CommercePage />} />
         </Route>
         <Route path="/platform" element={<PlatformLayout />}>
           <Route index element={<OverviewPage />} />
           <Route path="companies" element={<CompaniesPage />} />
+          <Route path="companies/:companyId" element={<CompanyDetailPage />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="users/:userId" element={<UserDetailPage />} />
           <Route path="billing" element={<RecordsPage title="Subscriptions and billing" path="/api/v1/platform/billing/" />} />
           <Route path="modules" element={<RecordsPage title="Modules" path="/api/v1/platform/modules/" />} />
           <Route path="audit" element={<AuditLogsPage />} />

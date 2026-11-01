@@ -34,7 +34,7 @@ export function ForgotPasswordPage() {
       >
         {requestReset.isSuccess ? (
           <div className="space-y-4">
-            <p className="rounded-xl bg-teal-50 px-4 py-3 text-sm text-teal-900">
+            <p className="rounded-xl bg-teal-50 dark:bg-teal-950 px-4 py-3 text-sm text-teal-900 dark:text-teal-100">
               The link expires in one hour and works once. If nothing arrives, check the spelling and request it again.
             </p>
             <Link to="/login" className="inline-flex w-full items-center justify-center rounded-lg bg-teal-800 px-3 py-2.5 text-sm font-semibold text-white hover:bg-teal-900">
@@ -48,7 +48,7 @@ export function ForgotPasswordPage() {
             <Button type="submit" className="w-full rounded-lg py-2.5" disabled={requestReset.isPending}>
               {requestReset.isPending ? "Sending…" : "Send reset link"}
             </Button>
-            <p className="text-center text-sm text-slate-600">
+            <p className="text-center text-sm text-slate-600 dark:text-slate-300">
               <Link className="font-medium text-teal-800" to="/login">Back to Sign In</Link>
             </p>
           </form>

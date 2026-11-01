@@ -9,7 +9,10 @@ from apps.identity.models import User
 
 
 class Command(BaseCommand):
-    help = "Create or update the initial platform operator. This is not a public registration path."
+    help = (
+        "Create or update the initial platform operator (bootstrap only). "
+        "After the first admin exists, prefer the platform console Invite operator flow."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument("--email", required=True)

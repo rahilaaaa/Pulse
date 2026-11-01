@@ -1,5 +1,6 @@
 import hashlib
 import json
+import uuid
 from datetime import timedelta
 
 from django.test import TestCase
@@ -13,7 +14,7 @@ from apps.billing.models import BillingPlan, BillingPlanPrice, Subscription, Sub
 from apps.hrms.models import LeavePolicy, LeaveRequest
 from apps.identity.models import User
 from apps.modules_registry.models import CompanyModuleInstallation, InstallationStatus
-from apps.organization.models import Person
+from apps.organization.models import Person, PersonStatus
 from apps.tenants.models import Company, CompanyMembership, CompanyStatus, InvitationStatus, MembershipInvitation, MembershipStatus
 
 PASSWORD = "a-long-passphrase"
@@ -105,6 +106,72 @@ class MembershipAdminTests(TestCase):
         )
         self.assertEqual(second.status_code, 200)
         self.assertEqual(AuditLog.objects.filter(action="membership.roles_changed", object_id=self.staff_membership.id).count(), 1)
+
+    def test_role_members_can_be_added_and_removed(self):
+        client = self._client(self.admin)
+        listed = client.get(self._role_members_url(self.company, self.hr_role))
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.data["results"], [])
+        available_ids = {row["membership_id"] for row in listed.data["available"]}
+        self.assertIn(str(self.staff_membership.id), available_ids)
+
+        added = client.post(
+            self._role_members_url(self.company, self.hr_role),
+            {"membership_ids": [str(self.staff_membership.id)]},
+            format="json",
+        )
+        self.assertEqual(added.status_code, 200, added.content)
+        self.assertEqual(added.data["added"], [str(self.staff_membership.id)])
+        self.assertIn(self.hr_role.id, self._assigned_role_ids(self.staff_membership))
+        self.assertIn(self.employee_role.id, self._assigned_role_ids(self.staff_membership))
+        self.assertEqual(AuditLog.objects.filter(action="role.members_changed", object_id=self.hr_role.id).count(), 1)
+
+        refreshed = client.get(self._role_members_url(self.company, self.hr_role))
+        self.assertEqual([row["membership_id"] for row in refreshed.data["results"]], [str(self.staff_membership.id)])
+        roles = client.get(f"/api/v1/companies/{self.company.id}/roles/")
+        hr = next(row for row in roles.data["results"] if row["id"] == str(self.hr_role.id))
+        self.assertEqual(hr["user_count"], 1)
+
+        removed = client.delete(self._role_member_url(self.company, self.hr_role, self.staff_membership))
+        self.assertEqual(removed.status_code, 204)
+        self.assertNotIn(self.hr_role.id, self._assigned_role_ids(self.staff_membership))
+        self.assertIn(self.employee_role.id, self._assigned_role_ids(self.staff_membership))
+        self.assertEqual(AuditLog.objects.filter(action="role.members_changed", object_id=self.hr_role.id).count(), 2)
+
+    def test_non_owner_cannot_change_owner_role_members(self):
+        client = self._client(self.admin)
+        owner_membership = CompanyMembership.objects.get(company=self.company, user=self.owner)
+        denied_add = client.post(
+            self._role_members_url(self.company, self.owner_role),
+            {"membership_ids": [str(self.staff_membership.id)]},
+            format="json",
+        )
+        self.assertEqual(denied_add.status_code, 403)
+        self.assertNotIn(self.owner_role.id, self._assigned_role_ids(self.staff_membership))
+
+        denied_remove = client.delete(self._role_member_url(self.company, self.owner_role, owner_membership))
+        self.assertEqual(denied_remove.status_code, 403)
+        self.assertIn(self.owner_role.id, self._assigned_role_ids(owner_membership))
+
+    def test_cannot_remove_the_last_owner_from_owner_role(self):
+        client = self._client(self.owner)
+        owner_membership = CompanyMembership.objects.get(company=self.company, user=self.owner)
+        blocked = client.delete(self._role_member_url(self.company, self.owner_role, owner_membership))
+        self.assertEqual(blocked.status_code, 409)
+        self.assertIn(self.owner_role.id, self._assigned_role_ids(owner_membership))
+
+        granted = client.post(
+            self._role_members_url(self.company, self.owner_role),
+            {"membership_ids": [str(self.admin_membership.id)]},
+            format="json",
+        )
+        self.assertEqual(granted.status_code, 200, granted.content)
+        self.assertIn(self.owner_role.id, self._assigned_role_ids(self.admin_membership))
+        removed = client.delete(self._role_member_url(self.company, self.owner_role, owner_membership))
+        self.assertEqual(removed.status_code, 204)
+        last = self._client(self.admin).delete(self._role_member_url(self.company, self.owner_role, self.admin_membership))
+        self.assertEqual(last.status_code, 409)
+        self.assertIn(self.owner_role.id, self._assigned_role_ids(self.admin_membership))
 
     def test_cross_company_role_and_membership_are_rejected(self):
         _other_owner, other = self._open_company("other-co", "other-owner@example.com")
@@ -305,6 +372,141 @@ class MembershipAdminTests(TestCase):
         self.assertEqual(accept_audit.after["status"], "accepted")
         self.assertEqual(AuditLog.objects.filter(action="membership.invitation_accepted").count(), 1)
 
+    def test_invitation_join_creates_account_and_opens_workspace(self):
+        raw = "join-invitation-token"
+        MembershipInvitation.objects.create(
+            company=self.company,
+            email="newhire@example.com",
+            token_hash=hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+            invited_by=self.owner,
+            expires_at=timezone.now() + timedelta(days=2),
+            status=InvitationStatus.PENDING,
+        )
+        client = APIClient()
+        preview = client.get("/api/v1/invitations/preview/", {"token": raw})
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.data["email"], "newhire@example.com")
+        self.assertFalse(preview.data["account_exists"])
+
+        joined = client.post(
+            "/api/v1/invitations/join/",
+            {"token": raw, "password": PASSWORD, "first_name": "Ignored", "last_name": "Client"},
+            format="json",
+        )
+        self.assertEqual(joined.status_code, 200, joined.content)
+        self.assertEqual(joined.data["email"], "newhire@example.com")
+        self.assertEqual(joined.data["first_name"], "")
+        self.assertEqual(joined.data["last_name"], "")
+        self.assertTrue(joined.data["email_verified"])
+        self.assertEqual(joined.data["company_id"], str(self.company.id))
+        self.assertEqual(len(joined.data["memberships"]), 1)
+
+        user = User.objects.get(email="newhire@example.com")
+        self.assertEqual(user.first_name, "")
+        self.assertEqual(user.last_name, "")
+        person = Person.objects.get(company=self.company, work_email="newhire@example.com")
+        self.assertEqual(person.first_name, "")
+        self.assertEqual(person.last_name, "")
+        membership = CompanyMembership.objects.get(company=self.company, user=user)
+        self.assertTrue(MembershipRoleAssignment.objects.filter(membership=membership, role__template_code="employee").exists())
+
+        workspace = client.get("/api/v1/workspace/")
+        self.assertEqual(workspace.status_code, 200)
+        self.assertEqual(workspace.data["company"]["id"], str(self.company.id))
+        self.assertIn("company.view", workspace.data["permissions"])
+
+    def test_invitation_join_seeds_user_name_from_person(self):
+        raw = "join-with-person-token"
+        Person.objects.create(
+            company=self.company,
+            first_name="Ada",
+            last_name="Lovelace",
+            work_email="ada@example.com",
+            status=PersonStatus.ACTIVE,
+        )
+        MembershipInvitation.objects.create(
+            company=self.company,
+            email="ada@example.com",
+            token_hash=hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+            invited_by=self.owner,
+            expires_at=timezone.now() + timedelta(days=2),
+            status=InvitationStatus.PENDING,
+        )
+        client = APIClient()
+        joined = client.post(
+            "/api/v1/invitations/join/",
+            {"token": raw, "password": PASSWORD, "first_name": "Grace", "last_name": "Hopper"},
+            format="json",
+        )
+        self.assertEqual(joined.status_code, 200, joined.content)
+        self.assertEqual(joined.data["first_name"], "Ada")
+        self.assertEqual(joined.data["last_name"], "Lovelace")
+
+        user = User.objects.get(email="ada@example.com")
+        self.assertEqual(user.first_name, "Ada")
+        self.assertEqual(user.last_name, "Lovelace")
+        person = Person.objects.get(company=self.company, work_email="ada@example.com")
+        self.assertEqual(person.first_name, "Ada")
+        self.assertEqual(person.last_name, "Lovelace")
+
+    def test_existing_email_joins_a_second_company_and_can_switch_back(self):
+        raw = "second-company-token"
+        _owner_b, company_b = self._open_company("eduhub", "eduhub-owner@example.com")
+        MembershipInvitation.objects.create(
+            company=company_b,
+            email=self.owner.email,
+            token_hash=hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+            invited_by=_owner_b,
+            expires_at=timezone.now() + timedelta(days=2),
+            status=InvitationStatus.PENDING,
+        )
+        client = APIClient()
+        wrong = client.post(
+            "/api/v1/invitations/join/",
+            {"token": raw, "password": "not-the-password"},
+            format="json",
+        )
+        self.assertEqual(wrong.status_code, 401)
+        self.assertEqual(CompanyMembership.objects.filter(user=self.owner, status=MembershipStatus.ACTIVE).count(), 1)
+        self.owner.refresh_from_db()
+        self.assertTrue(self.owner.check_password(PASSWORD))
+        self.assertTrue(
+            MembershipInvitation.objects.filter(company=company_b, email=self.owner.email, status=InvitationStatus.PENDING).exists()
+        )
+
+        joined = client.post(
+            "/api/v1/invitations/join/",
+            {"token": raw, "password": PASSWORD},
+            format="json",
+        )
+        self.assertEqual(joined.status_code, 200, joined.content)
+        self.assertEqual(User.objects.filter(email=self.owner.email).count(), 1)
+        self.assertEqual(len(joined.data["memberships"]), 2)
+        self.assertEqual(joined.data["company_id"], str(company_b.id))
+        self.assertEqual(Person.objects.filter(company=self.company, work_email=self.owner.email).count(), 1)
+        self.assertEqual(Person.objects.filter(company=company_b, work_email=self.owner.email).count(), 1)
+        self.assertEqual(CompanyMembership.objects.filter(user=self.owner, company=company_b, status=MembershipStatus.ACTIVE).count(), 1)
+
+        opened = client.get("/api/v1/workspace/")
+        self.assertEqual(opened.status_code, 200, opened.content)
+        self.assertEqual(opened.data["company"]["id"], str(company_b.id))
+
+        switched = client.post(
+            "/api/v1/workspace/switch/",
+            {"company_id": str(self.company.id)},
+            format="json",
+        )
+        self.assertEqual(switched.status_code, 200, switched.content)
+        self.assertEqual(switched.data["company"]["id"], str(self.company.id))
+        again = client.get("/api/v1/workspace/")
+        self.assertEqual(again.status_code, 200, again.content)
+        self.assertEqual(again.data["company"]["id"], str(self.company.id))
+
+        missing = client.post("/api/v1/workspace/switch/", {"company_id": str(uuid.uuid4())}, format="json")
+        self.assertEqual(missing.status_code, 404)
+        stayed = client.get("/api/v1/workspace/")
+        self.assertEqual(stayed.data["company"]["id"], str(self.company.id))
+
     def test_leave_decisions_are_audited_once(self):
         CompanyModuleInstallation.objects.create(
             company=self.company,
@@ -403,6 +605,12 @@ class MembershipAdminTests(TestCase):
 
     def _roles_url(self, company, membership):
         return f"/api/v1/companies/{company.id}/memberships/{membership.id}/roles/"
+
+    def _role_members_url(self, company, role):
+        return f"/api/v1/companies/{company.id}/roles/{role.id}/members/"
+
+    def _role_member_url(self, company, role, membership):
+        return f"/api/v1/companies/{company.id}/roles/{role.id}/members/{membership.id}/"
 
     def _status_url(self, company, membership):
         return f"/api/v1/companies/{company.id}/memberships/{membership.id}/status/"

@@ -98,6 +98,9 @@ class CompanyRole(models.Model):
     description = models.TextField(blank=True, default="")
     is_owner_role = models.BooleanField(default=False)
     is_system = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    record_scopes = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -105,6 +108,7 @@ class CompanyRole(models.Model):
         db_table = "company_roles"
         constraints = [
             models.UniqueConstraint(fields=["company", "name"], name="company_roles_company_name_unique"),
+            models.UniqueConstraint(fields=["company", "id"], name="company_roles_company_id_id_unique"),
         ]
 
 

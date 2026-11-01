@@ -29,6 +29,7 @@ class Company(models.Model):
     status = models.CharField(max_length=32, choices=CompanyStatus.choices)
     country_code = models.CharField(max_length=2, default="IN")
     timezone = models.CharField(max_length=64, default="Asia/Kolkata")
+    custom_data = models.JSONField(default=dict, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -75,6 +76,7 @@ class CompanyMembership(models.Model):
         related_name="memberships",
     )
     status = models.CharField(max_length=32, choices=MembershipStatus.choices)
+    custom_data = models.JSONField(default=dict, blank=True)
     joined_at = models.DateTimeField(null=True, blank=True)
     removed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -181,6 +183,8 @@ class MembershipInvitation(models.Model):
         related_name="invitations_accepted",
         db_column="accepted_by_user_id",
     )
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    custom_data = models.JSONField(default=dict, blank=True)
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -205,6 +209,8 @@ class FieldEntity(models.TextChoices):
     ORGANIZATION_UNIT = "organization_unit", "Organization Unit"
     TASK = "task", "Task"
     COMPANY = "company", "Company"
+    INVITATION = "invitation", "Invitation"
+    MEMBERSHIP = "membership", "Membership"
 
 
 class FieldType(models.TextChoices):
@@ -218,6 +224,12 @@ class FieldType(models.TextChoices):
     EMAIL = "email", "Email"
     URL = "url", "URL"
     PHONE = "phone", "Phone"
+    REFERENCE = "reference", "Link"
+
+
+class FieldStatus(models.TextChoices):
+    ACTIVE = "active", "Active"
+    ARCHIVED = "archived", "Archived"
 
 
 class CustomField(models.Model):
@@ -227,12 +239,16 @@ class CustomField(models.Model):
     name = models.CharField(max_length=150)
     key = models.SlugField(max_length=64)
     field_type = models.CharField(max_length=32, choices=FieldType.choices, default=FieldType.TEXT)
+    help_text = models.CharField(max_length=255, blank=True, default="")
     required = models.BooleanField(default=False)
     sensitive = models.BooleanField(default=False)
     self_editable = models.BooleanField(default=True)
     filterable = models.BooleanField(default=False)
     options = models.JSONField(default=list, blank=True)
+    config = models.JSONField(default=dict, blank=True)
     position = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=32, choices=FieldStatus.choices, default=FieldStatus.ACTIVE)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -248,6 +264,10 @@ class CustomField(models.Model):
             models.CheckConstraint(
                 condition=models.Q(field_type__in=[choice.value for choice in FieldType]),
                 name="custom_fields_type_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status__in=[choice.value for choice in FieldStatus]),
+                name="custom_fields_status_valid",
             ),
         ]
 
@@ -321,4 +341,97 @@ class NotificationPreference(models.Model):
         db_table = "notification_preferences"
         constraints = [
             models.UniqueConstraint(fields=["company", "user", "event"], name="notification_preferences_event_unique"),
+        ]
+
+
+class CustomEntity(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="custom_entities")
+    key = models.SlugField(max_length=64)
+    name = models.CharField(max_length=150)
+    description = models.CharField(max_length=500, blank=True, default="")
+    status = models.CharField(max_length=32, choices=FieldStatus.choices, default=FieldStatus.ACTIVE)
+    schema_version = models.PositiveIntegerField(default=1)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "custom_entities"
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["company", "key"], name="custom_entities_company_key_unique"),
+            models.UniqueConstraint(fields=["company", "id"], name="custom_entities_company_id_id_unique"),
+            models.CheckConstraint(
+                condition=models.Q(status__in=[choice.value for choice in FieldStatus]),
+                name="custom_entities_status_valid",
+            ),
+        ]
+
+
+class CustomEntityField(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="custom_entity_fields")
+    entity = models.ForeignKey(CustomEntity, on_delete=models.CASCADE, related_name="fields")
+    name = models.CharField(max_length=150)
+    key = models.SlugField(max_length=64)
+    field_type = models.CharField(max_length=32, choices=FieldType.choices, default=FieldType.TEXT)
+    help_text = models.CharField(max_length=255, blank=True, default="")
+    required = models.BooleanField(default=False)
+    sensitive = models.BooleanField(default=False)
+    self_editable = models.BooleanField(default=True)
+    filterable = models.BooleanField(default=False)
+    is_primary = models.BooleanField(default=False)
+    options = models.JSONField(default=list, blank=True)
+    config = models.JSONField(default=dict, blank=True)
+    position = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=32, choices=FieldStatus.choices, default=FieldStatus.ACTIVE)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "custom_entity_fields"
+        ordering = ["position", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["entity", "key"], name="custom_entity_fields_entity_key_unique"),
+            models.CheckConstraint(
+                condition=models.Q(field_type__in=[choice.value for choice in FieldType]),
+                name="custom_entity_fields_type_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status__in=[choice.value for choice in FieldStatus]),
+                name="custom_entity_fields_status_valid",
+            ),
+        ]
+
+
+class CustomEntityRecord(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="custom_entity_records")
+    entity = models.ForeignKey(CustomEntity, on_delete=models.CASCADE, related_name="records")
+    data = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="custom_entity_records_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="custom_entity_records_updated",
+    )
+    archived_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "custom_entity_records"
+        indexes = [
+            models.Index(fields=["company", "entity", "created_at"], name="custom_entity_records_list_idx"),
+            models.Index(fields=["company", "entity", "archived_at"], name="custom_entity_records_arch_idx"),
         ]

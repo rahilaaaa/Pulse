@@ -85,15 +85,15 @@ export function RegisterPage() {
   return (
     <AuthFrame>
       {createdEmail ? (
-        <AuthCard title="Verify your email" description={<>We sent a verification link to <span className="font-medium text-slate-700">{maskEmail(createdEmail)}</span>.</>}>
-          <div className="rounded-xl bg-teal-50 px-4 py-3 text-sm text-teal-900">
+        <AuthCard title="Verify your email" description={<>We sent a verification link to <span className="font-medium text-slate-700 dark:text-slate-300">{maskEmail(createdEmail)}</span>.</>}>
+          <div className="rounded-xl bg-teal-50 dark:bg-teal-950 px-4 py-3 text-sm text-teal-900 dark:text-teal-100">
             <p className="font-semibold">Waiting for verification</p>
             <p className="mt-1 text-teal-800">Open the link in the email to verify your address. If Gmail is not configured, the same link is printed in the API server window.</p>
           </div>
           <Link to="/login" className="mt-5 inline-flex w-full items-center justify-center rounded-lg bg-teal-800 px-3 py-2.5 text-sm font-semibold text-white hover:bg-teal-900">
             Go to sign in
           </Link>
-          <p className="mt-4 text-center text-sm text-slate-600">
+          <p className="mt-4 text-center text-sm text-slate-600 dark:text-slate-300">
             Wrong address? <Link className="font-medium text-teal-800" to="/register" onClick={() => setCreatedEmail(null)}>Change email</Link>
           </p>
         </AuthCard>
@@ -103,15 +103,15 @@ export function RegisterPage() {
             <TextField label="Full name" required autoComplete="name" {...form.register("full_name")} error={form.formState.errors.full_name?.message} />
             <TextField label="Work email" required type="email" autoComplete="username" {...form.register("email")} error={form.formState.errors.email?.message ?? messageFor("email")} />
             <PasswordField label="Password" required autoComplete="new-password" placeholder="Create a password" {...form.register("password")} error={form.formState.errors.password?.message ?? messageFor("password")} />
-            <ul className="space-y-1 text-sm text-slate-600">
+            <ul className="space-y-1 text-sm text-slate-600 dark:text-slate-300">
               {rules.map(([label, met]) => (
                 <li key={label} className={met ? "text-teal-800" : ""}>
-                  {label} <span className="text-slate-500">({met ? "met" : "not met"})</span>
+                  {label} <span className="text-slate-500 dark:text-slate-400">({met ? "met" : "not met"})</span>
                 </li>
               ))}
             </ul>
             <PasswordField label="Confirm password" required autoComplete="new-password" {...form.register("confirm_password")} error={form.formState.errors.confirm_password?.message} />
-            <label className="flex items-start gap-2 text-sm text-slate-700">
+            <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input type="checkbox" className="mt-1 accent-teal-800" {...form.register("accept_terms")} />
               <span>
                 I agree to the <Link className="font-medium text-teal-800" to="/terms">Terms</Link> and acknowledge the <Link className="font-medium text-teal-800" to="/privacy">Privacy</Link> notice.
@@ -122,8 +122,8 @@ export function RegisterPage() {
             <Button type="submit" className="w-full rounded-lg py-2.5" disabled={register.isPending || !accepted}>
               {register.isPending ? "Creating account…" : "Create Account"}
             </Button>
-            {!accepted ? <p className="text-center text-sm text-slate-500">Accept the terms to continue.</p> : null}
-            <p className="text-center text-sm text-slate-600">
+            {!accepted ? <p className="text-center text-sm text-slate-500 dark:text-slate-400">Accept the terms to continue.</p> : null}
+            <p className="text-center text-sm text-slate-600 dark:text-slate-300">
               Already have an account?{" "}
               <Link className="font-medium text-teal-800" to="/login">Sign in</Link>
             </p>

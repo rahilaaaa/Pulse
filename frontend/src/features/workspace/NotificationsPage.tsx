@@ -149,24 +149,24 @@ export function NotificationsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Notifications</h1>
-          <p className="mt-1 text-sm text-slate-500">One notification system for the whole platform, including installed modules.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Notifications</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">One notification system for the whole platform, including installed modules.</p>
         </div>
         {tab === "inbox" ? (
           <Button type="button" variant="secondary" disabled={markRead.isPending || (inbox.data?.unread_count ?? 0) === 0} onClick={() => markRead.mutate(undefined)}>Mark all read</Button>
         ) : null}
         {tab === "announcements" && canPublish ? <Button type="button" onClick={openComposer}>+ New announcement</Button> : null}
       </div>
-      <div className="flex gap-6 border-b border-slate-200 text-sm">
+      <div className="flex gap-6 border-b border-slate-200 dark:border-slate-700 text-sm">
         {TABS.map((item) => (
           <button
             key={item.id}
             type="button"
-            className={`border-b-2 pb-2 ${tab === item.id ? "border-teal-800 font-medium text-slate-900" : "border-transparent text-slate-500"}`}
+            className={`border-b-2 pb-2 ${tab === item.id ? "border-teal-800 font-medium text-slate-900 dark:text-slate-100" : "border-transparent text-slate-500 dark:text-slate-400"}`}
             onClick={() => setParams({ tab: item.id })}
           >
             {item.label}
-            {item.id === "inbox" ? <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{inbox.data?.unread_count ?? 0}</span> : null}
+            {item.id === "inbox" ? <span className="ml-2 rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-xs text-slate-600 dark:text-slate-300">{inbox.data?.unread_count ?? 0}</span> : null}
           </button>
         ))}
       </div>
@@ -174,22 +174,22 @@ export function NotificationsPage() {
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((item) => (
-              <button key={item.id} type="button" className={`rounded-full px-3 py-1 text-sm ${filter === item.id ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`} onClick={() => setFilter(item.id)}>
+              <button key={item.id} type="button" className={`rounded-full px-3 py-1 text-sm ${filter === item.id ? "bg-slate-900 text-white" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"}`} onClick={() => setFilter(item.id)}>
                 {item.label}
               </button>
             ))}
           </div>
-          {visible.length === 0 ? <p className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">No notifications in this view.</p> : visible.map((item) => (
+          {visible.length === 0 ? <p className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">No notifications in this view.</p> : visible.map((item) => (
             <button
               key={item.id}
               type="button"
-              className="flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:border-slate-300"
+              className="flex w-full items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-left hover:border-slate-300 dark:border-slate-600"
               onClick={() => { if (!item.read) markRead.mutate([item.id]); }}
             >
               <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read ? "bg-transparent" : "bg-teal-700"}`} aria-hidden="true" />
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
-                {item.body ? <span className="mt-0.5 block text-sm text-slate-500">{item.body}</span> : null}
+                <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">{item.title}</span>
+                {item.body ? <span className="mt-0.5 block text-sm text-slate-500 dark:text-slate-400">{item.body}</span> : null}
               </span>
               <span className="shrink-0 text-xs text-slate-400">{relativeTime(item.created_at)}</span>
             </button>
@@ -199,16 +199,16 @@ export function NotificationsPage() {
       {tab === "announcements" ? (
         announcements.isLoading || !announcements.data ? <LoadingState label="Loading announcements" /> : (
           <div className="space-y-3">
-            {announcements.data.results.length === 0 ? <p className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">No announcements yet.</p> : announcements.data.results.map((item) => (
-              <article key={item.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            {announcements.data.results.length === 0 ? <p className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">No announcements yet.</p> : announcements.data.results.map((item) => (
+              <article key={item.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3">
                 <div className="flex gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-teal-50 text-teal-800">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-800">
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 10v4a2 2 0 0 0 2 2h1l4 4V4L7 8H6a2 2 0 0 0-2 2Z" /><path d="M16 9a4 4 0 0 1 0 6" /><path d="M18.5 7a7 7 0 0 1 0 10" /></svg>
                   </span>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-semibold text-slate-900">{item.title}</h2>
-                    <p className="mt-0.5 text-sm text-slate-600">{item.message}</p>
-                    <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                    <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.title}</h2>
+                    <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{item.message}</p>
+                    <p className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                       <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] font-semibold text-white ${avatarClass(item.author_name)}`}>{initials(item.author_name)}</span>
                       {item.author_name} · {shortDate(item.created_at)} · {item.audience}
                     </p>
@@ -221,18 +221,18 @@ export function NotificationsPage() {
       ) : null}
       {tab === "preferences" ? (
         preferences.isLoading || !preferences.data ? <LoadingState label="Loading preferences" /> : (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="grid grid-cols-[1fr_4.5rem_4.5rem] border-b border-slate-200 px-4 py-3 text-sm text-slate-500">
+          <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+            <div className="grid grid-cols-[1fr_4.5rem_4.5rem] border-b border-slate-200 dark:border-slate-700 px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
               <span>Event</span>
               <span className="text-center">In-app</span>
               <span className="text-center">Email</span>
             </div>
             {groups.map((group) => (
               <div key={group.group}>
-                <p className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-900">{group.group}</p>
+                <p className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{group.group}</p>
                 {group.rows.map((row) => (
                   <div key={row.event} className="grid grid-cols-[1fr_4.5rem_4.5rem] items-center border-b border-slate-100 px-4 py-3 last:border-b-0">
-                    <span className="text-sm text-slate-700">{row.label}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{row.label}</span>
                     <span className="flex justify-center"><Switch label={`${row.label} in-app`} checked={row.in_app} onChange={(value) => savePreference.mutate({ ...row, in_app: value })} /></span>
                     <span className="flex justify-center"><Switch label={`${row.label} email`} checked={row.email} onChange={(value) => savePreference.mutate({ ...row, email: value })} /></span>
                   </div>
@@ -255,11 +255,11 @@ export function NotificationsPage() {
         }
       >
         <div className="space-y-3">
-          <label className="block text-sm font-medium text-slate-700">Title *
-            <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Title *
+            <input className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none focus:border-teal-700" value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
-          <label className="block text-sm font-medium text-slate-700">Message *
-            <textarea className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700" rows={4} value={message} onChange={(event) => setMessage(event.target.value)} />
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Message *
+            <textarea className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none focus:border-teal-700" rows={4} value={message} onChange={(event) => setMessage(event.target.value)} />
           </label>
           {formError ? <p className="text-sm text-rose-700">{formError}</p> : null}
         </div>
@@ -271,7 +271,7 @@ export function NotificationsPage() {
 function Switch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
     <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`relative h-6 w-11 rounded-full transition ${checked ? "bg-teal-800" : "bg-slate-300"}`} onClick={() => onChange(!checked)}>
-      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${checked ? "left-5" : "left-0.5"}`} />
+      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white dark:bg-slate-900 transition ${checked ? "left-5" : "left-0.5"}`} />
     </button>
   );
 }

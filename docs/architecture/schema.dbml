@@ -1,14 +1,23 @@
-// Pulse canonical schema. Import into DrawSQL or another DBML tool.
+// Pulse intended target schema (design proposal). Import into DrawSQL or another DBML tool.
+// This file is NOT a live dump of the database and is NOT automatic approval of every
+// table or field for implementation. Distinguish:
+//   - Currently implemented: Django models and migrations under backend/apps/
+//   - Approved architectural direction: ADR-019 LegalEntity+Employment, ADR-020 Party,
+//     ADR-021 tenant-integrity gate (details still require design review)
+//   - Target-design proposals in this file: may still need review before coding
+// Known drift and status: docs/architecture/14-implementation-status.md
 // Monetary amounts are bigint minor units (paise for INR). Never float.
-// Tenant-owned child rows use a composite foreign key on (company_id, parent_id)
-// whenever the parent row is also tenant-owned.
+// Tenant-owned child rows are INTENDED to use a composite foreign key on
+// (company_id, parent_id) whenever the parent row is also tenant-owned.
+// Those composite keys are not yet applied in Django migrations (ADR-002 / ADR-021).
+// Do not rewrite these tables solely to match current Django column names.
 // PostgreSQL enums are intentionally not used. Allowed values are check constraints
 // documented on each status column and in 03-database-design.md.
 // Partial unique indexes that DBML cannot express are marked with notes.
 
 Project pulse {
   database_type: "PostgreSQL"
-  Note: "Pulse modular monolith. INR-first billing. Shared schema multi-tenancy."
+  Note: "Pulse modular monolith. INR-first billing. Shared schema multi-tenancy. Intended target schema — see 14-implementation-status.md for drift vs Django."
 }
 
 // ---------------------------------------------------------------------------

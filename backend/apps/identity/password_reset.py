@@ -64,13 +64,22 @@ def confirm_password_reset(*, token: str, password: str) -> None:
                 message=messages[0],
             ) from exc
         user.set_password(password)
-        user.save(update_fields=["password", "updated_at"])
+        fields = ["password", "updated_at"]
+        if user.email_verified_at is None:
+            user.email_verified_at = now
+            fields.append("email_verified_at")
+        user.save(update_fields=fields)
         row.used_at = now
         row.save(update_fields=["used_at"])
         PasswordResetToken.objects.filter(user=user, used_at=None).update(used_at=now)
 
 
-def _issue_reset(user: User) -> None:
+def _issue_reset(
+    user: User,
+    *,
+    subject: str | None = None,
+    message: str | None = None,
+) -> None:
     now = timezone.now()
     PasswordResetToken.objects.filter(user=user, used_at=None).update(used_at=now)
     raw = secrets.token_urlsafe(32)
@@ -80,14 +89,18 @@ def _issue_reset(user: User) -> None:
         expires_at=now + timedelta(hours=RESET_HOURS),
     )
     link = f"{settings.FRONTEND_ORIGIN}/reset-password?token={raw}"
+    subject = subject or "Reset your Pulse password"
+    message = message or (
+        "Use this link to choose a new Pulse password. "
+        f"It expires in {RESET_HOURS} hour and can be used once.\n\n{link}\n\n"
+        "If you did not ask for this, you can ignore the message. Your password will stay the same."
+    )
+    if "{link}" in message:
+        message = message.format(link=link, hours=RESET_HOURS)
     try:
         send_mail(
-            subject="Reset your Pulse password",
-            message=(
-                "Use this link to choose a new Pulse password. "
-                f"It expires in {RESET_HOURS} hour and can be used once.\n\n{link}\n\n"
-                "If you did not ask for this, you can ignore the message. Your password will stay the same."
-            ),
+            subject=subject,
+            message=message,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
             fail_silently=False,

@@ -1,25 +1,54 @@
 # 03 — Database Design
 
-Status: approved planning baseline. Column names, types, keys, and tenant composite foreign keys are canonical in [schema.dbml](schema.dbml). This document explains purpose, constraints, ownership, retention, and the decisions behind that file.
+Status: planning baseline plus Phase 0 reconciliation notes. This document explains purpose, constraints, ownership, and retention for the **intended target design** in [schema.dbml](schema.dbml).
+
+**How to read schema sources**
+
+| Source | Meaning |
+| --- | --- |
+| Django models and migrations | Currently implemented and verified. |
+| ADR-019 / ADR-020 / ADR-021 | Approved architectural direction; field-level design still requires review. |
+| [schema.dbml](schema.dbml) and this document | Intended target-design proposals. Not every table or field is approved for immediate implementation. |
+
+Composite foreign keys `(company_id, parent_id)` remain the **design intent** for tenant-safe parent/child links (ADR-002, ADR-021). They are **not** yet applied in Django migrations. Do not rewrite DBML solely to match current Django column names; track drift in [14-implementation-status.md](14-implementation-status.md).
 
 ## 1. Conventions
 
 - PostgreSQL 16. Shared database and shared schema. Tenant ownership is a `company_id` column plus tenant-aware services.
 - Primary keys are UUIDs. Sequential integers are not used for object ids.
 - Status and type columns are `varchar` with check constraints. Native PostgreSQL enums are avoided so new values can ship in an ordinary migration.
-- Money is `bigint` minor units. For INR, one unit is one paise. `numeric` and floating-point money are forbidden. `hrms_leave_policies.annual_allowance_days` is `numeric` because it counts days, not money.
+- Money is `bigint` minor units. For INR, one unit is one paise. `numeric` and floating-point money are forbidden. Target DBML uses `hrms_leave_policies.annual_allowance_days` as `numeric` because it counts days, not money. **As built:** Django `LeavePolicy.days_per_year` is a positive integer.
 - Currency is `char(3)` on every catalog price, subscription, subscription item, invoice, payment, and refund. The MVP check constraint allows only `INR`. Adding a currency later adds rows and relaxes that check. It does not replace the billing tables.
 - Timestamps are `timestamptz`.
-- Tenant-owned parents expose `unique (company_id, id)`. Children that point at those parents use a composite foreign key `(company_id, parent_id)`. A person, role, invoice line, or leave request cannot reference another company's parent.
+- Tenant-owned parents are intended to expose `unique (company_id, id)`. Children that point at those parents are intended to use a composite foreign key `(company_id, parent_id)`. A person, role, invoice line, or leave request must not reference another company's parent.
 - Nullable composite foreign keys use PostgreSQL `MATCH SIMPLE`: the constraint applies when every referenced column is present.
 - Partial unique indexes are called out in prose where DBML cannot express the predicate.
 - Django's `django_session` table is created by the framework and is not duplicated in `schema.dbml`.
 
 ### 1.1 Core versus optional
 
-Core platform tables are every table in `schema.dbml` except `hrms_leave_policies` and `hrms_leave_requests`. Those two belong to the HRMS Leave module. Their migrations live in the `hrms` Django app and deploy with the monolith. Rows exist only after that company installs the module and uses it.
+Core platform tables in the target DBML exclude `hrms_leave_policies` and `hrms_leave_requests`. Those two belong to the HRMS Leave module. Their migrations live in the `hrms` Django app and deploy with the monolith. Rows exist only after that company installs the module and uses it.
 
-CRM and Commerce tables are postponed. They are not in `schema.dbml`.
+CRM, Projects, and Commerce tables are postponed and are not in `schema.dbml`. Catalog stubs must not be read as schema approval.
+
+### 1.1a Approved directions not yet modeled
+
+Documented in [12-architecture-decisions.md](12-architecture-decisions.md); **no** final fields or migrations here. Conceptual relationships and ownership are frozen in Phase 1 design docs—**not** as Implemented schema:
+
+- **LegalEntity** under Company (provisional owner `apps.tenants`), and HRMS **Employment** linking Person to LegalEntity (ADR-019). See [15-shared-domain-model.md](15-shared-domain-model.md). Leave stays Person-based until a separate migration slice ([18-module-boundaries-and-roadmap.md](18-module-boundaries-and-roadmap.md)).
+- Shared **Party** for external CRM/Commerce/Procurement identities (ADR-020); provisional app `apps.parties`. See [15-shared-domain-model.md](15-shared-domain-model.md).
+- Tenant-integrity work including composite constraints before Projects/CRM (ADR-021). See [17-authorization-and-tenant-integrity.md](17-authorization-and-tenant-integrity.md).
+- **Branch:** no dedicated model in v1; reuse organization units ([15](15-shared-domain-model.md)).
+
+Do not add LegalEntity / Employment / Party tables to [schema.dbml](schema.dbml) until an implementation design review explicitly approves columns. Phase 1 does not edit DBML table bodies.
+
+### 1.1b Notable drift versus Django (examples)
+
+| Target DBML / this doc | As built (Django) |
+| --- | --- |
+| Composite FKs on many tenant children | Simple FKs only |
+| `people.manager_person_id` | No manager column on Person |
+| Leave `annual_allowance_days`, `start_date` / `end_date`, cancelled status | `days_per_year`, `starts_on` / `ends_on`, pending/approved/rejected |
 
 ### 1.2 Separate lifecycles
 

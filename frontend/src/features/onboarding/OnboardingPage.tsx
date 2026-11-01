@@ -181,8 +181,8 @@ function ReviewRow({ label, value, onEdit }: { label: string; value: string; onE
   return (
     <div className="flex items-start justify-between gap-4 py-3">
       <div>
-        <p className="text-sm text-slate-500">{label}</p>
-        <p className="mt-0.5 text-sm font-medium text-slate-900">{value || "Not provided"}</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="mt-0.5 text-sm font-medium text-slate-900 dark:text-slate-100">{value || "Not provided"}</p>
       </div>
       <button type="button" className="text-sm font-semibold text-teal-800" onClick={onEdit}>
         Edit
@@ -203,17 +203,17 @@ function CreatingWorkspace({ onDone }: { onDone: () => void }) {
   }, [count, onDone]);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 sm:p-8">
       <ol className="space-y-3">
         {CREATE_STEPS.map((label, index) => {
           const done = index < count;
           const active = index === count;
           return (
             <li key={label} className="flex items-center gap-3 text-sm">
-              <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${done ? "bg-teal-800 text-white" : "border border-slate-300 text-slate-400"}`}>
+              <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${done ? "bg-teal-800 text-white" : "border border-slate-300 dark:border-slate-600 text-slate-400"}`}>
                 {done ? "✓" : active ? "•" : ""}
               </span>
-              <span className={done || active ? "text-slate-900" : "text-slate-400"}>{label}</span>
+              <span className={done || active ? "text-slate-900 dark:text-slate-100" : "text-slate-400"}>{label}</span>
             </li>
           );
         })}
@@ -393,18 +393,18 @@ export function OnboardingPage() {
   if (phase === "email") {
     return (
       <AuthFrame>
-        <AuthCard title="Verify your email" description={<>We sent a verification link to <span className="font-medium text-slate-700">{maskEmail(user.email)}</span>.</>}>
-          <div className="rounded-xl bg-teal-50 px-4 py-3 text-sm text-teal-900">
+        <AuthCard title="Verify your email" description={<>We sent a verification link to <span className="font-medium text-slate-700 dark:text-slate-300">{maskEmail(user.email)}</span>.</>}>
+          <div className="rounded-xl bg-teal-50 dark:bg-teal-950 px-4 py-3 text-sm text-teal-900 dark:text-teal-100">
             <p className="font-semibold">Waiting for verification</p>
             <p className="mt-1 text-teal-800">Open the link in the email to verify your address. Company setup continues after that.</p>
           </div>
           <Button type="button" className="mt-5 w-full rounded-lg py-2.5" variant="secondary" disabled={resend.isPending} onClick={() => resend.mutate()}>
             {resend.isPending ? "Sending" : "Resend verification email"}
           </Button>
-          {resend.data?.delivery === "smtp" ? <p className="mt-3 text-sm text-slate-600">The link was sent. Check the inbox and the spam folder.</p> : null}
-          {resend.data?.delivery === "console" ? <p className="mt-3 text-sm text-slate-600">Gmail was not used. The link is in the API server window.</p> : null}
+          {resend.data?.delivery === "smtp" ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">The link was sent. Check the inbox and the spam folder.</p> : null}
+          {resend.data?.delivery === "console" ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Gmail was not used. The link is in the API server window.</p> : null}
           {resend.error instanceof ApiError ? <p className="mt-3 text-sm text-rose-700">{resend.error.message}</p> : null}
-          <button type="button" className="mt-4 w-full text-sm font-medium text-slate-600" disabled={logout.isPending} onClick={() => logout.mutate()}>
+          <button type="button" className="mt-4 w-full text-sm font-medium text-slate-600 dark:text-slate-300" disabled={logout.isPending} onClick={() => logout.mutate()}>
             Sign out
           </button>
         </AuthCard>
@@ -423,7 +423,7 @@ export function OnboardingPage() {
   if (phase === "company" && !progress.steps.company_created) {
     return (
       <OnboardingShell {...shell} title="Create a new company" description="Your company gets its own isolated workspace. You can change these later.">
-        <form className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8" onSubmit={companyForm.handleSubmit((values) => createCompany.mutate(values))} noValidate>
+        <form className="space-y-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 sm:p-8" onSubmit={companyForm.handleSubmit((values) => createCompany.mutate(values))} noValidate>
           <TextField label="Company name" required hint="Your legal or commonly used company name." {...companyForm.register("legal_name")} error={companyForm.formState.errors.legal_name?.message} />
           <TextField label="Workspace name" required hint="Shown to your team inside Pulse." {...companyForm.register("display_name")} error={companyForm.formState.errors.display_name?.message} />
           <TextField
@@ -448,13 +448,13 @@ export function OnboardingPage() {
   if (phase === "company") {
     return (
       <OnboardingShell {...shell} title="Company name" description="The workspace URL stays as it was created.">
-        <form className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8" onSubmit={namesForm.handleSubmit((values) => saveNames.mutate(values))} noValidate>
+        <form className="space-y-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 sm:p-8" onSubmit={namesForm.handleSubmit((values) => saveNames.mutate(values))} noValidate>
           <TextField label="Company name" required {...namesForm.register("legal_name")} error={namesForm.formState.errors.legal_name?.message} />
           <TextField label="Workspace name" required {...namesForm.register("display_name")} error={namesForm.formState.errors.display_name?.message} />
-          <p className="text-sm text-slate-500">pulse.app/{progress.company?.slug}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">pulse.app/{progress.company?.slug}</p>
           {actionError ? <p className="text-sm text-rose-700">{actionError}</p> : null}
           <div className="flex items-center justify-between">
-            <button type="button" className="text-sm font-semibold text-slate-700" onClick={() => setEditing(null)}>Back</button>
+            <button type="button" className="text-sm font-semibold text-slate-700 dark:text-slate-300" onClick={() => setEditing(null)}>Back</button>
             <Button type="submit" className="rounded-lg px-5 py-2.5" disabled={saveNames.isPending}>{saveNames.isPending ? "Saving" : "Save"}</Button>
           </div>
         </form>
@@ -465,8 +465,8 @@ export function OnboardingPage() {
   if (phase === "information") {
     return (
       <OnboardingShell {...shell} title="Company information" description="Used for localization, billing, and your company profile.">
-        <form className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8" onSubmit={informationForm.handleSubmit((values) => saveInformation.mutate(values))} noValidate>
-          <p className="text-sm text-slate-500">* Required · fields marked Optional can be added later</p>
+        <form className="space-y-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 sm:p-8" onSubmit={informationForm.handleSubmit((values) => saveInformation.mutate(values))} noValidate>
+          <p className="text-sm text-slate-500 dark:text-slate-400">* Required · fields marked Optional can be added later</p>
           <TextField label="Company name" required {...informationForm.register("legal_name")} error={informationForm.formState.errors.legal_name?.message} />
           <TextField label="Workspace name" required {...informationForm.register("display_name")} error={informationForm.formState.errors.display_name?.message} />
           <SelectField label="Timezone" required {...informationForm.register("timezone")} error={informationForm.formState.errors.timezone?.message}>
@@ -477,9 +477,9 @@ export function OnboardingPage() {
               <option value={informationForm.watch("timezone")}>{informationForm.watch("timezone")}</option>
             ) : null}
           </SelectField>
-          <div className="border-t border-slate-200 pt-5">
-            <h2 className="text-base font-semibold text-slate-900">Billing profile</h2>
-            <p className="mt-1 text-sm text-slate-500">GSTIN is optional. A matching value is a format check, not proof of registration.</p>
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-5">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Billing profile</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">GSTIN is optional. A matching value is a format check, not proof of registration.</p>
           </div>
           <TextField label="Billing name" required {...informationForm.register("billing_name")} error={informationForm.formState.errors.billing_name?.message} />
           <TextField label="Billing email" required type="email" {...informationForm.register("billing_email")} error={informationForm.formState.errors.billing_email?.message} />
@@ -498,7 +498,7 @@ export function OnboardingPage() {
           <TextField label="GSTIN" optional {...informationForm.register("gstin")} error={informationForm.formState.errors.gstin?.message} />
           {actionError ? <p className="text-sm text-rose-700">{actionError}</p> : null}
           <div className="flex items-center justify-between">
-            <button type="button" className="text-sm font-semibold text-slate-700" onClick={() => { setEditing(null); setLocal(progress.steps.billing_profile_completed ? "review" : null); }}>Back</button>
+            <button type="button" className="text-sm font-semibold text-slate-700 dark:text-slate-300" onClick={() => { setEditing(null); setLocal(progress.steps.billing_profile_completed ? "review" : null); }}>Back</button>
             <Button type="submit" className="rounded-lg px-5 py-2.5" disabled={saveInformation.isPending}>{saveInformation.isPending ? "Saving" : "Continue"}</Button>
           </div>
         </form>
@@ -511,14 +511,14 @@ export function OnboardingPage() {
     const address = billing ? [billing.address_line1, billing.address_line2, billing.city, stateName(billing.state_code), billing.postal_code].filter(Boolean).join(", ") : "Not provided";
     return (
       <OnboardingShell {...shell} title="Review your company" description="Confirm the details below. Next, you'll choose modules and we'll open your workspace.">
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
-          <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+        <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 sm:p-8">
+          <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-700 pb-4">
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-teal-800 text-sm font-semibold text-white">
               {progress.company.display_name.slice(0, 2).toUpperCase()}
             </span>
             <div>
-              <p className="font-semibold text-slate-900">{progress.company.legal_name}</p>
-              <p className="text-sm text-slate-500">pulse.app/{progress.company.slug}</p>
+              <p className="font-semibold text-slate-900 dark:text-slate-100">{progress.company.legal_name}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">pulse.app/{progress.company.slug}</p>
             </div>
           </div>
           <div className="divide-y divide-slate-200">
@@ -531,7 +531,7 @@ export function OnboardingPage() {
             <ReviewRow label="GSTIN" value={billing?.gstin || "Not provided"} onEdit={() => setEditing("information")} />
           </div>
           <div className="mt-6 flex items-center justify-between">
-            <button type="button" className="text-sm font-semibold text-slate-700" onClick={() => setEditing("information")}>Back</button>
+            <button type="button" className="text-sm font-semibold text-slate-700 dark:text-slate-300" onClick={() => setEditing("information")}>Back</button>
             <Button type="button" className="rounded-lg px-5 py-2.5" onClick={() => { setEditing(null); setLocal("modules"); }}>Continue</Button>
           </div>
         </section>
@@ -540,8 +540,9 @@ export function OnboardingPage() {
   }
 
   if (phase === "modules") {
+    const planUnavailable = !plans.isLoading && !catalogPlan;
     return (
-      <OnboardingShell {...shell} wide heading={!moduleFocus} title="Choose your modules" description="Install the modules you want. You can add more later.">
+      <OnboardingShell {...shell} wide heading={!moduleFocus} title="Choose your modules" description="Modules are optional. Start the trial anytime — you can add modules later.">
         <ModuleStep
           onFocusChange={setModuleFocus}
           selected={selectedModules}
@@ -559,7 +560,10 @@ export function OnboardingPage() {
           }}
           continuing={selectPlan.isPending}
           continueDisabled={!catalogPlan || plans.isLoading}
-          error={actionError}
+          error={
+            actionError
+            ?? (planUnavailable ? "The trial plan is not available yet. Refresh the page or contact support." : null)
+          }
         />
       </OnboardingShell>
     );
@@ -575,18 +579,18 @@ export function OnboardingPage() {
 
   return (
     <OnboardingShell {...shell} title="Your company workspace is ready." description="The trial is active.">
-      <section className="rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center sm:px-10">
+      <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-10 text-center sm:px-10">
         <span className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-teal-800 text-white">
           <svg viewBox="0 0 20 20" className="h-7 w-7" fill="none" aria-hidden="true">
             <path d="M5 10.5l3.2 3.2L15 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-        <div className="mx-auto mt-8 max-w-md divide-y divide-slate-200 rounded-lg border border-slate-200 text-left text-sm">
-          <div className="flex justify-between px-4 py-3"><span className="text-slate-500">Company</span><span className="font-medium text-slate-900">{progress.company?.legal_name}</span></div>
-          <div className="flex justify-between px-4 py-3"><span className="text-slate-500">Workspace URL</span><span className="font-medium text-slate-900">pulse.app/{progress.company?.slug}</span></div>
-          <div className="flex justify-between px-4 py-3"><span className="text-slate-500">Plan</span><span className="font-medium text-slate-900">{progress.subscription?.plan_name ?? "Plan"}{progress.subscription?.trial_ends_at ? ` · Trial until ${new Date(progress.subscription.trial_ends_at).toLocaleDateString()}` : ""}</span></div>
-          <div className="flex justify-between gap-4 px-4 py-3"><span className="text-slate-500">Modules</span><span className="text-right font-medium text-slate-900">{progress.installed_modules?.length ? progress.installed_modules.join(", ") : "Core workspace"}</span></div>
-          <div className="flex justify-between px-4 py-3"><span className="text-slate-500">Access</span><span className="font-medium text-slate-900">{accessLabel(progress.access_mode)}</span></div>
+        <div className="mx-auto mt-8 max-w-md divide-y divide-slate-200 rounded-lg border border-slate-200 dark:border-slate-700 text-left text-sm">
+          <div className="flex justify-between px-4 py-3"><span className="text-slate-500 dark:text-slate-400">Company</span><span className="font-medium text-slate-900 dark:text-slate-100">{progress.company?.legal_name}</span></div>
+          <div className="flex justify-between px-4 py-3"><span className="text-slate-500 dark:text-slate-400">Workspace URL</span><span className="font-medium text-slate-900 dark:text-slate-100">pulse.app/{progress.company?.slug}</span></div>
+          <div className="flex justify-between px-4 py-3"><span className="text-slate-500 dark:text-slate-400">Plan</span><span className="font-medium text-slate-900 dark:text-slate-100">{progress.subscription?.plan_name ?? "Plan"}{progress.subscription?.trial_ends_at ? ` · Trial until ${new Date(progress.subscription.trial_ends_at).toLocaleDateString()}` : ""}</span></div>
+          <div className="flex justify-between gap-4 px-4 py-3"><span className="text-slate-500 dark:text-slate-400">Modules</span><span className="text-right font-medium text-slate-900 dark:text-slate-100">{progress.installed_modules?.length ? progress.installed_modules.join(", ") : "Core workspace"}</span></div>
+          <div className="flex justify-between px-4 py-3"><span className="text-slate-500 dark:text-slate-400">Access</span><span className="font-medium text-slate-900 dark:text-slate-100">{accessLabel(progress.access_mode)}</span></div>
         </div>
         <Button type="button" className="mt-8 rounded-lg px-5 py-2.5" onClick={() => { window.location.assign("/app"); }}>Open company dashboard</Button>
       </section>

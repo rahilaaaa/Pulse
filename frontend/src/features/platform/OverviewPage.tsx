@@ -16,8 +16,10 @@ export function OverviewPage() {
     <section className="space-y-5">
       <Breadcrumbs items={["Platform", "Overview"]} />
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Overview</h1>
-        <p className="mt-1 text-sm text-slate-600">Counts are calculated from the database when this page loads.</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Overview</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+          Company-first console. Open Companies to inspect members inside each tenant.
+        </p>
       </div>
       {overview.isLoading ? <LoadingState label="Loading overview" /> : null}
       {overview.error ? (
@@ -34,13 +36,15 @@ export function OverviewPage() {
       {overview.data ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Metric label="Companies" value={overview.data.companies.total} to="/platform/companies" />
-          <Metric label="Active users" value={overview.data.users.active} detail={`${overview.data.users.total} total`} to="/platform/users?account_status=active" />
-          <Metric label="Authenticator enabled" value={overview.data.users.mfa_enabled} to="/platform/users?mfa=enabled" />
-          <Metric label="Active memberships" value={overview.data.active_memberships} to="/platform/companies" />
           {Object.entries(overview.data.companies.by_status).map(([status, count]) => (
             <Metric key={status} label={`Companies ${status}`} value={count} to={`/platform/companies?status=${status}`} />
           ))}
-          <Metric label="Platform grants" value={overview.data.platform_grants} to="/platform/users" />
+          <Metric
+            label="Platform operators"
+            value={overview.data.platform_grants}
+            detail="Accounts with platform grants, not company members"
+            to="/platform/users?has_platform_grants=yes"
+          />
         </div>
       ) : null}
     </section>
@@ -49,10 +53,10 @@ export function OverviewPage() {
 
 function Metric({ label, value, detail, to }: { label: string; value: number; detail?: string; to: string }) {
   return (
-    <Link to={to} className="rounded-lg border border-slate-200 bg-white px-4 py-5 transition hover:border-teal-700 hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800">
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-slate-900">{value}</p>
-      {detail ? <p className="mt-1 text-xs text-slate-500">{detail}</p> : null}
+    <Link to={to} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-5 transition hover:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800">
+      <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-100">{value}</p>
+      {detail ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{detail}</p> : null}
     </Link>
   );
 }

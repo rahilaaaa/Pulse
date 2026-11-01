@@ -1,6 +1,6 @@
 # 05 — Identity and Authorization
 
-Status: approved planning baseline. Permission codes in this document are the catalog that `permissions` and the API must share.
+Status: planning baseline with Phase 0 implementation notes. Permission codes here are the **target catalog** the `permissions` table and API should share. Where code differs, [14-implementation-status.md](14-implementation-status.md) and `backend/apps/authorization/catalog.py` describe what is seeded today.
 
 ## 1. Five separate decisions
 
@@ -79,26 +79,31 @@ Company scope:
 | `membership.update` | Suspend a membership or link a person. |
 | `membership.remove` | Remove a membership. |
 | `people.view` | List and read people in the company. |
-| `people.create` | Create a person, subject to `max_people`. |
-| `people.update` | Update a person, with the department-manager object rule. |
+| `people.create` | Create a person, subject to `max_people`. (**As built:** entitlement is seeded; create-path enforcement not verified as implemented.) |
+| `people.update` | Update a person, with the department-manager object rule. (**As built:** action permission only; object rule not enforced.) |
 | `people.deactivate` | Set a person inactive. |
 | `departments.view` | List departments. |
-| `departments.manage` | Create, update, and delete empty departments. |
+| `departments.manage` | Create, update, and delete empty departments. (**As built:** create/update; delete semantics may differ.) |
 | `roles.view` | List roles. |
 | `roles.manage` | Create roles, edit permissions, assign roles. |
 | `modules.view` | View the catalog and installation state. |
-| `modules.install` | Install, retry, and upgrade. |
-| `modules.configure` | Update installation config. |
-| `modules.uninstall` | Uninstall without deleting business data. |
-| `billing.view` | View subscription, invoices, payments, and refunds. |
-| `billing.manage` | Change plan, cancel, add or schedule removal of module items, edit the billing profile. |
+| `modules.install` | Install, retry, and upgrade. (**As built:** install and retry; upgrade service Missing.) |
+| `modules.configure` | Update installation config. (**As built:** permission seeded; service Missing.) |
+| `modules.uninstall` | Uninstall without deleting business data. (**As built:** permission seeded; service Missing.) |
+| `billing.view` | View subscription, invoices, payments, and refunds. (**As built:** subscription summary; full invoice/payment surfaces Missing.) |
+| `billing.manage` | Change plan, cancel, add or schedule removal of module items, edit the billing profile. (**As built:** billing profile and plan select paths Partial.) |
 | `dashboards.view` | View an assigned dashboard. |
 | `dashboards.manage` | Create, edit, publish, restore, and assign dashboards. |
-| `notifications.view` | Read the caller's notifications. |
+| `notifications.view` | Read the caller's notifications. (**Documented / not seeded** in `catalog.py`. Inbox currently gated with `company.view`.) |
+| `custom_entities.manage` | Create and archive custom entities and their fields. (**Seeded in code.**) |
+| `custom_entities.view` | List and view custom entity records. (**Seeded.**) |
+| `custom_entities.create` | Create custom entity records. (**Seeded.**) |
+| `custom_entities.update` | Update custom entity records. (**Seeded.**) |
+| `custom_entities.delete` | Archive custom entity records. (**Seeded.**) |
 | `audit.view` | Read the company audit log. |
-| `hrms.leave.view` | Read leave policies and requests the caller is allowed to see. |
+| `hrms.leave.view` | Read leave policies and requests the caller is allowed to see. (**As built:** lists all company requests for any holder of this code.) |
 | `hrms.leave.request` | Create a leave request for the caller's linked person. |
-| `hrms.leave.decide` | Create policies and approve or reject requests. |
+| `hrms.leave.decide` | Approve or reject requests. (**Docs formerly said “create policies”; policy CRUD API Missing. Decide path Implemented.**) |
 
 Platform scope, stored only in `platform_permission_grants`:
 
@@ -107,6 +112,7 @@ Platform scope, stored only in `platform_permission_grants`:
 | `platform.companies.view` | Company counts, lifecycle, and usage summaries. |
 | `platform.companies.manage` | Suspend, reactivate, and close a company. |
 | `platform.users.view` | Global user and membership metrics. |
+| `platform.users.manage` | Create and update platform users and permission grants. (**Seeded in code.**) |
 | `platform.billing.view` | Subscriptions, invoices, payments, refunds, and MRR. |
 | `platform.billing.manage` | Execute a refund. |
 | `platform.modules.manage` | Module adoption, failures, and catalog operations. |
@@ -123,22 +129,23 @@ Templates are copied into `company_roles` when the company is created. Later edi
 | --- | --- |
 | Owner | Every company-scope permission, including HRMS codes. `is_owner_role = true`. |
 | Administrator | Every company-scope permission. Not an owner, so this role cannot be the last protected owner. |
-| HR Manager | `company.view`, `membership.view`, `membership.invite`, `people.view`, `people.create`, `people.update`, `people.deactivate`, `departments.view`, `departments.manage`, `hrms.leave.view`, `hrms.leave.request`, `hrms.leave.decide`, `dashboards.view`, `notifications.view`. |
-| Department Manager | `company.view`, `people.view`, `people.update`, `departments.view`, `hrms.leave.view`, `hrms.leave.decide`, `dashboards.view`, `notifications.view`. |
-| Employee | `company.view`, `people.view`, `dashboards.view`, `notifications.view`, `hrms.leave.view`, `hrms.leave.request`. |
+| HR Manager | As in `authorization/catalog.py`: people, invitations, departments, leave view/request/decide, `dashboards.view`. Does **not** currently include `notifications.view` (that code is not seeded). |
+| Department Manager | As in catalog: people view/update, departments view, leave view/decide, `dashboards.view`. No `notifications.view`. |
+| Employee | As in catalog: `company.view`, `people.view`, `dashboards.view`, `hrms.leave.view`, `hrms.leave.request`. No `notifications.view`. |
 
 Checks use codes. Code may test `is_owner_role` only for the last-owner rule and the owner permission floor. It must not authorize with string comparisons such as `role.name == "HR Manager"`.
 
 ### 5.1 Owner floor and last owner
 
-The owner role always retains `company.update`, `roles.manage`, `billing.manage`, and `membership.invite`. An update that removes those codes returns `409`.
+The owner role always retains `company.update`, `roles.manage`, `billing.manage`, `membership.invite`, and (**as built**) `custom_entities.manage`. An update that removes those codes returns `409`.
 
 At least one `active` membership must hold a role with `is_owner_role`. Removing that membership, suspending it, or unassigning that role returns `409` when it would leave zero owners.
 
 ### 5.2 Object-level rules
 
-- A department manager's `people.update` applies only to people whose `department_id` equals the manager person's department. Administrators and owners are not limited that way.
-- `hrms.leave.request` creates a request only for the person linked to the caller's membership.
+- A department manager's `people.update` **should** apply only to people whose `department_id` equals the manager person's department. Administrators and owners are not limited that way. (**As built:** specified here; **not enforced** in person update services—action permission only. Completing record scopes is part of ADR-021.)
+- `hrms.leave.request` creates a request only for the person linked to the caller's membership. (**Implemented.**)
+- `hrms.leave.view` **should** respect “allowed to see” scopes. (**As built:** any holder sees all company leave requests.)
 - `people.view` in the MVP is company-wide for anyone who holds it. Hiding the directory from employees is a later change to the Employee template, not a second authorization mechanism.
 - Billing, module, and dashboard detail routes load the row with `company_id` in the query. A foreign id is `404`.
 
@@ -156,11 +163,13 @@ Revocation deletes rows in `membership_role_assignments` or `company_role_permis
 - Installation does not insert role permissions. An owner who already has the HRMS codes from the template can use the module. An employee can use only the codes they already have.
 - Uninstall or a canceled module item removes entitlement. It does not delete `hrms_leave_requests`.
 
-People creation checks `max_people` against active people inside the same transaction. Pending invitations that will create a new person count toward the same limit.
+People creation **should** check `max_people` against active people inside the same transaction. Pending invitations that will create a new person **should** count toward the same limit. (**As built:** Growth entitlement seeds `max_people`; create-path enforcement not verified as implemented.)
 
 ## 7. Access mode and authorization
 
 Access mode is applied before the permission check. A caller with `people.create` in `billing_only` still receives `403` `access_restricted`. Billing view and billing manage remain available in `billing_only` and `grace`. The matrix is defined in [08-subscriptions-and-billing.md](08-subscriptions-and-billing.md) and is not restated with different values here.
+
+**As built (Unresolved):** `require_permission` currently treats `grace` similarly to `full` for non-billing company codes. Either align code with the billing matrix or update the matrix/docs—do not assume which is correct without a decision.
 
 Platform `suspended` and `closed` resolve to `blocked` for company routes, including billing. The operator uses platform routes to unsuspend.
 

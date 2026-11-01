@@ -5,13 +5,13 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.identity.mfa import begin_mfa, complete_login, user_requires_mfa, verify_mfa
 from apps.identity.serializers import normalize_email, serialize_current_user
 from apps.identity.services import (
     SIGN_IN_FAILED,
     authenticate_credentials,
     clear_login_throttle,
     client_ip,
+    complete_login,
     enforce_login_throttle,
     record_login_attempt,
 )
@@ -51,18 +51,7 @@ class LoginView(APIView):
             raise not_authenticated(SIGN_IN_FAILED)
 
         clear_login_throttle(ip=ip, email=email)
-        if user_requires_mfa(user):
-            return Response(begin_mfa(request, user))
         complete_login(request, user)
-        return Response(serialize_current_user(user))
-
-
-class MfaView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        user = verify_mfa(request, request.data.get("code", ""))
         return Response(serialize_current_user(user))
 
 

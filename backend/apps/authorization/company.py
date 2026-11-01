@@ -11,6 +11,7 @@ from apps.authorization.models import (
     RoleTemplate,
     RoleTemplatePermission,
 )
+from apps.authorization.scopes import default_record_scopes_for_template
 from apps.organization.models import Person, PersonStatus
 from apps.tenants.models import CompanyMembership, MembershipStatus
 from common.api.errors import conflict, not_found, permission_denied
@@ -47,6 +48,7 @@ def bootstrap_company_access(company, owner_user) -> None:
                     description=template.description,
                     is_owner_role=template.is_owner_role,
                     is_system=True,
+                    record_scopes=default_record_scopes_for_template(template.code),
                 )
                 CompanyRolePermission.objects.bulk_create(
                     [
@@ -79,7 +81,23 @@ def bootstrap_company_access(company, owner_user) -> None:
             membership.save(update_fields=["person", "updated_at"])
 
 
+def assign_default_member_role(membership, *, assigned_by=None) -> bool:
+    """Give invited members the Employee role so the workspace dashboard is usable."""
+    if MembershipRoleAssignment.objects.filter(membership=membership).exists():
+        return False
+    role = (
+        CompanyRole.objects.filter(company_id=membership.company_id, template_code="employee").first()
+        or CompanyRole.objects.filter(company_id=membership.company_id, name="Employee", is_system=True).first()
+    )
+    if role is None:
+        return False
+    MembershipRoleAssignment.objects.create(membership=membership, role=role, assigned_by=assigned_by)
+    return True
+
+
 def effective_permission_codes(membership) -> set[str]:
+    if MembershipRoleAssignment.objects.filter(membership=membership, role__is_owner_role=True).exists():
+        return {code for code, _description, _module in COMPANY_PERMISSIONS}
     return set(
         CompanyRolePermission.objects.filter(role__assignments__membership=membership).values_list("permission_id", flat=True)
     )
@@ -176,3 +194,18 @@ def authorize_owner_role_change(*, actor_membership, target_membership, roles: l
         raise permission_denied("Only an owner can grant or revoke the owner role.")
     if not next_owner_ids:
         assert_owner_remains(target_membership.company, membership=target_membership)
+
+
+def authorize_owner_role_member_add(*, actor_membership, role: CompanyRole) -> None:
+    """Assigning a protected owner role requires the caller to already hold one."""
+    if role.is_owner_role and not holds_owner_role(actor_membership):
+        raise permission_denied("Only an owner can grant or revoke the owner role.")
+
+
+def authorize_owner_role_member_remove(*, actor_membership, role: CompanyRole, target_membership) -> None:
+    """Revoking a protected owner role requires an owner caller and at least one remaining owner."""
+    if not role.is_owner_role:
+        return
+    if not holds_owner_role(actor_membership):
+        raise permission_denied("Only an owner can grant or revoke the owner role.")
+    assert_owner_remains(target_membership.company, membership=target_membership)

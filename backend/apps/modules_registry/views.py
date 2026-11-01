@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.authorization.company import require_permission
-from apps.modules_registry.services import catalog_for_company, install_module
+from apps.modules_registry.services import catalog_for_company, install_module, uninstall_module
 
 
 class ModuleCatalogView(APIView):
@@ -20,3 +20,13 @@ class ModuleInstallView(APIView):
     def post(self, request, company_id, slug):
         membership = require_permission(request.user, company_id, "modules.install")
         return Response(install_module(user=request.user, company=membership.company, slug=slug, request=request, enforce_permission=False))
+
+
+class ModuleUninstallView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id, slug):
+        membership = require_permission(request.user, company_id, "modules.uninstall")
+        return Response(
+            uninstall_module(user=request.user, company=membership.company, slug=slug, request=request, enforce_permission=False)
+        )
