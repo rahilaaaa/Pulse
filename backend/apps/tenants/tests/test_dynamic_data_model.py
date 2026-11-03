@@ -25,6 +25,7 @@ from apps.tenants.models import (
     MembershipInvitation,
     MembershipStatus,
 )
+from common.api.exceptions import PulseAPIException
 
 PASSWORD = "a-long-passphrase"
 
@@ -86,6 +87,78 @@ class DynamicDataModelTests(TestCase):
         self.assertEqual(person.custom_data or {}, {})
         joined = CompanyMembership.objects.get(company=self.company, user=invitee)
         self.assertEqual(joined.custom_data or {}, {})
+
+    def test_invitation_links_existing_person_without_creating_duplicate(self):
+        person = Person.objects.create(
+            company=self.company,
+            first_name="Jo",
+            last_name="Employee",
+            work_email="jo-link@example.com",
+        )
+        invitee = User.objects.create_user(email="jo-link@example.com", password=PASSWORD)
+        invitee.email_verified_at = timezone.now()
+        invitee.save(update_fields=["email_verified_at", "updated_at"])
+        invitation = MembershipInvitation.objects.create(
+            company=self.company,
+            person=person,
+            email=invitee.email,
+            token_hash=hashlib.sha256(secrets.token_urlsafe(16).encode()).hexdigest(),
+            invited_by=self.owner,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+        request = RequestFactory().post("/api/v1/invitations/accept/")
+        request.user = invitee
+        accept_invitation(request=request, invitation=invitation, user=invitee)
+        self.assertEqual(Person.objects.filter(company=self.company, work_email__iexact=invitee.email).count(), 1)
+        membership = CompanyMembership.objects.get(company=self.company, user=invitee)
+        self.assertEqual(membership.person_id, person.id)
+
+    def test_ambiguous_invitation_email_requires_manual_resolution(self):
+        Person.objects.create(company=self.company, first_name="First", work_email="duplicate@example.com")
+        Person.objects.create(company=self.company, first_name="Second", work_email="Duplicate@example.com")
+        invitee = User.objects.create_user(email="duplicate@example.com", password=PASSWORD)
+        invitee.email_verified_at = timezone.now()
+        invitee.save(update_fields=["email_verified_at", "updated_at"])
+        invitation = MembershipInvitation.objects.create(
+            company=self.company,
+            email=invitee.email,
+            token_hash=hashlib.sha256(secrets.token_urlsafe(16).encode()).hexdigest(),
+            invited_by=self.owner,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+        request = RequestFactory().post("/api/v1/invitations/accept/")
+        request.user = invitee
+        with self.assertRaises(PulseAPIException):
+            accept_invitation(request=request, invitation=invitation, user=invitee)
+        self.assertFalse(CompanyMembership.objects.filter(company=self.company, user=invitee).exists())
+
+    def test_invitation_does_not_relink_existing_membership_to_different_person(self):
+        person = Person.objects.create(company=self.company, first_name="Linked", work_email="linked@example.com")
+        other_person = Person.objects.create(company=self.company, first_name="Other", work_email="other@example.com")
+        invitee = User.objects.create_user(email="linked@example.com", password=PASSWORD)
+        invitee.email_verified_at = timezone.now()
+        invitee.save(update_fields=["email_verified_at", "updated_at"])
+        CompanyMembership.objects.create(
+            company=self.company,
+            user=invitee,
+            person=other_person,
+            status=MembershipStatus.ACTIVE,
+            joined_at=timezone.now(),
+        )
+        invitation = MembershipInvitation.objects.create(
+            company=self.company,
+            person=person,
+            email=invitee.email,
+            token_hash=hashlib.sha256(secrets.token_urlsafe(16).encode()).hexdigest(),
+            invited_by=self.owner,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+        request = RequestFactory().post("/api/v1/invitations/accept/")
+        request.user = invitee
+        with self.assertRaises(PulseAPIException):
+            accept_invitation(request=request, invitation=invitation, user=invitee)
+        membership = CompanyMembership.objects.get(company=self.company, user=invitee)
+        self.assertEqual(membership.person_id, other_person.id)
 
     def test_sensitive_custom_data_redacted_without_elevated_permission(self):
         CustomField.objects.create(

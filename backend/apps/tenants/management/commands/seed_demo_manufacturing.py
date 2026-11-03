@@ -80,18 +80,16 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         password = options["password"]
+        from apps.tenants.demo_seeders.manufacturing import seed_manufacturing_company
+        from apps.tenants.demo_seeders.base import StatsCollector
+        stats = StatsCollector()
         with transaction.atomic():
             self._ensure_catalogs()
-            if options["reset"]:
+            if options.get("reset"):
                 self._reset()
-            if Company.objects.filter(slug=SLUG).exists():
-                raise CommandError(f"Company slug={SLUG} already exists. Re-run with --reset.")
-            ctx = self._seed_all(password)
-        self.stdout.write(self.style.SUCCESS(f"Seeded company {ctx['company'].display_name} id={ctx['company'].id}"))
+            seed_manufacturing_company(password=password, stats=stats)
+        self.stdout.write(self.style.SUCCESS("Seeded company Aether Precision (aether-precision)"))
         self.stdout.write(f"Owner login: {OWNER_EMAIL} / (password you passed, default a-long-passphrase)")
-        self._print_id_map(ctx)
-        if not options["skip_verify"]:
-            self._verify(ctx, password)
 
     def _ensure_catalogs(self):
         ensure_platform_catalog()

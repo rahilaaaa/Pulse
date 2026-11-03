@@ -60,6 +60,42 @@ class Company(models.Model):
         return self.display_name
 
 
+class LegalEntityStatus(models.TextChoices):
+    DRAFT = "draft", "Draft"
+    ACTIVE = "active", "Active"
+    INACTIVE = "inactive", "Inactive"
+
+
+class LegalEntity(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="legal_entities")
+    name = models.CharField(max_length=180)
+    code = models.SlugField(max_length=64)
+    status = models.CharField(max_length=32, choices=LegalEntityStatus.choices, default=LegalEntityStatus.DRAFT)
+    country_code = models.CharField(max_length=2, default="IN")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="legal_entities_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "legal_entities"
+        constraints = [
+            models.UniqueConstraint(fields=["company", "name"], name="legal_entities_company_name_unique"),
+            models.UniqueConstraint(fields=["company", "code"], name="legal_entities_company_code_unique"),
+            models.UniqueConstraint(fields=["company", "id"], name="legal_entities_company_id_id_unique"),
+            models.CheckConstraint(
+                condition=models.Q(status__in=[choice.value for choice in LegalEntityStatus]),
+                name="legal_entities_status_valid",
+            ),
+        ]
+
+
 class CompanyMembership(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="memberships")
@@ -165,6 +201,13 @@ class InvitationStatus(models.TextChoices):
 class MembershipInvitation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="invitations")
+    person = models.ForeignKey(
+        "organization.Person",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="membership_invitations",
+    )
     email = models.EmailField()
     status = models.CharField(max_length=32, choices=InvitationStatus.choices, default=InvitationStatus.PENDING)
     token_hash = models.CharField(max_length=64, unique=True)

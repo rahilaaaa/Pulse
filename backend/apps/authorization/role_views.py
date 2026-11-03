@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.audit.models import AuditLog
-from apps.authorization.catalog import NAV_CATALOG
+from apps.authorization.catalog import COMPANY_PERMISSIONS, NAV_CATALOG
 from apps.authorization.company import (
     authorize_owner_role_member_add,
     authorize_owner_role_member_remove,
@@ -17,6 +17,7 @@ from apps.authorization.company import (
 )
 from apps.authorization.models import CompanyRole, CompanyRoleNavigation, CompanyRolePermission, MembershipRoleAssignment, Permission, PermissionScope
 from apps.dashboards.services import publish_role_layout, role_layout, widget_catalog
+from apps.modules_registry.models import CompanyModuleInstallation, InstallationStatus
 from apps.tenants.models import CompanyMembership, MembershipStatus
 from apps.tenants.services import _ip, _request_id
 from common.api.errors import conflict, not_found, permission_denied, validation_error
@@ -72,14 +73,28 @@ class RoleListView(APIView):
         roles = CompanyRole.objects.filter(company_id=company_id).order_by("-is_owner_role", "name")
         if not include_archived:
             roles = roles.filter(is_active=True)
+        installed_module_slugs = set(
+            CompanyModuleInstallation.objects.filter(
+                company_id=company_id,
+                status=InstallationStatus.INSTALLED,
+            ).values_list("module_id", flat=True)
+        )
+        permission_module_map = {code: module_slug for code, _, module_slug in COMPANY_PERMISSIONS}
         catalog = [
-            {"code": item.code, "description": item.description, "module_slug": item.module_slug}
+            {
+                "code": item.code,
+                "description": item.description,
+                "module_slug": item.module_slug or permission_module_map.get(item.code),
+            }
             for item in Permission.objects.filter(scope=PermissionScope.COMPANY).order_by("code")
+            if not (item.module_slug or permission_module_map.get(item.code))
+            or (item.module_slug or permission_module_map.get(item.code)) in installed_module_slugs
         ]
         return Response(
             {
                 "results": [_serialize_role(role) for role in roles],
                 "catalog": catalog,
+                "installed_modules": sorted(installed_module_slugs),
                 "caller_holds_owner_role": holds_owner_role(membership),
             }
         )

@@ -1,123 +1,199 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useOutletContext } from "react-router-dom";
+import { useState } from "react";
+import { useOutletContext, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
-import { Button } from "../../shared/ui/Button";
 import { EmptyState, LoadingState } from "../../shared/ui/States";
+import { CommerceNavigation } from "../commerce/CommerceNavigation";
+import type { CommerceNavTab, CommerceOverviewData } from "../commerce/types";
+import { OverviewView } from "../commerce/views/OverviewView";
+import { ProductsView } from "../commerce/views/ProductsView";
+import { CategoriesView } from "../commerce/views/CategoriesView";
+import { PriceListsView } from "../commerce/views/PriceListsView";
+import { InventoryView } from "../commerce/views/InventoryView";
+import { OrdersView } from "../commerce/views/OrdersView";
+import { CustomersView } from "../commerce/views/CustomersView";
+import { VendorsView } from "../commerce/views/VendorsView";
+import { DiscountsView } from "../commerce/views/DiscountsView";
+import { ReturnsView } from "../commerce/views/ReturnsView";
+import { ReportsView } from "../commerce/views/ReportsView";
+import { SettingsView } from "../commerce/views/SettingsView";
 import type { WorkspacePayload } from "./types";
-
-type ProductRow = { id: string; name: string; sku: string; price_minor: number };
-type OrderRow = { id: string; party: string; status: string; total_minor: number; currency: string };
-type PartyRow = { id: string; display_name: string };
 
 export function CommercePage() {
   const workspace = useOutletContext<WorkspacePayload>();
   const companyId = workspace.company.id;
-  const queryClient = useQueryClient();
-  const products = useQuery({
-    queryKey: ["commerce-products", companyId],
-    queryFn: () => api<{ results: ProductRow[] }>(`/api/v1/companies/${companyId}/commerce/products/`),
+  const permissions = workspace.permissions || [];
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get("tab") as CommerceNavTab) || "overview";
+  const [dateFilter, setDateFilter] = useState<string>("30d");
+
+  // Query overview dashboard for KPI counts and live navigation badges
+  const overviewQuery = useQuery({
+    queryKey: ["commerce-overview", companyId, dateFilter],
+    queryFn: () =>
+      api<CommerceOverviewData>(`/api/v1/companies/${companyId}/commerce/overview/?period=${dateFilter}`),
+    retry: 1,
   });
-  const orders = useQuery({
-    queryKey: ["commerce-orders", companyId],
-    queryFn: () => api<{ results: OrderRow[] }>(`/api/v1/companies/${companyId}/commerce/orders/`),
-  });
-  const parties = useQuery({
-    queryKey: ["parties", companyId],
-    queryFn: () => api<{ results: PartyRow[] }>(`/api/v1/companies/${companyId}/parties/`),
-    enabled: workspace.permissions.includes("parties.view"),
-  });
-  const createProduct = useMutation({
-    mutationFn: (values: { name: string; sku: string; price_minor: number }) =>
-      api(`/api/v1/companies/${companyId}/commerce/products/`, { method: "POST", body: JSON.stringify(values) }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["commerce-products", companyId] });
-    },
-  });
-  const createOrder = useMutation({
-    mutationFn: (values: { party_id: string; lines: { product_id: string; quantity: number }[] }) =>
-      api(`/api/v1/companies/${companyId}/commerce/orders/`, { method: "POST", body: JSON.stringify(values) }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["commerce-orders", companyId] });
-    },
-  });
-  if (products.isLoading) return <LoadingState label="Loading commerce" />;
-  if (products.isError) return <EmptyState title="Commerce unavailable" body="Install the Commerce module to continue." />;
-  const productRows = products.data?.results ?? [];
-  const orderRows = orders.data?.results ?? [];
-  const partyRows = parties.data?.results ?? [];
+
+  const handleSelectTab = (tab: CommerceNavTab) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", tab);
+    nextParams.delete("action");
+    nextParams.delete("productId");
+    setSearchParams(nextParams);
+  };
+
+  const handleNavigateTab = (tab: CommerceNavTab, extraParams?: Record<string, string>) => {
+    const nextParams = new URLSearchParams();
+    nextParams.set("tab", tab);
+    if (extraParams) {
+      Object.entries(extraParams).forEach(([k, v]) => nextParams.set(k, v));
+    }
+    setSearchParams(nextParams);
+  };
+
+  if (overviewQuery.isLoading) {
+    return <LoadingState label="Loading Commerce Operations Workspace..." />;
+  }
+
+  if (overviewQuery.isError) {
+    return (
+      <div className="py-12">
+        <EmptyState
+          title="Commerce Module Not Active"
+          body="The Commerce module is not enabled for this company or you do not have permission to access it. Visit the Marketplace to install or verify your organization permissions."
+        />
+      </div>
+    );
+  }
+
+  const overviewData = overviewQuery.data!;
+  const currencySymbol = overviewData?.kpis?.currency_symbol || "₹";
+
+  const badges = {
+    pending_orders: overviewData?.kpis?.pending_orders || 0,
+    low_stock: overviewData?.kpis?.low_stock_products || 0,
+    pending_returns: overviewData?.pending_returns?.length || 0,
+  };
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Commerce</h1>
-      {workspace.permissions.includes("commerce.manage") ? (
-        <form
-          className="flex flex-wrap items-end gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            createProduct.mutate({
-              name: String(form.get("name") || ""),
-              sku: String(form.get("sku") || ""),
-              price_minor: Number(form.get("price_minor") || 0),
-            });
-            event.currentTarget.reset();
-          }}
-        >
-          <label className="text-sm">Product<input className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2" name="name" required /></label>
-          <label className="text-sm">SKU<input className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2" name="sku" required /></label>
-          <label className="text-sm">Price (paise)<input className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2" name="price_minor" type="number" min={0} defaultValue={0} /></label>
-          <Button type="submit" disabled={createProduct.isPending}>Add product</Button>
-        </form>
-      ) : null}
-      <section>
-        <h2 className="text-lg font-medium">Products</h2>
-        {productRows.length === 0 ? <EmptyState title="No products" body="Add a catalog item before placing orders." /> : (
-          <ul className="mt-3 space-y-2 text-sm">
-            {productRows.map((row) => (
-              <li key={row.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
-                {row.name} · {row.sku} · ₹{(row.price_minor / 100).toFixed(2)}
-              </li>
-            ))}
-          </ul>
+    <div className="space-y-6 pb-12">
+      {/* Top Banner / Heading */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-teal-600 dark:text-teal-400">
+              Enterprise Operations
+            </span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            Commerce Operations
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Full-lifecycle sales desk, multi-tier pricing, Parties integration, inventory alerts, and returns ledger.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            Company: <strong className="text-slate-900 dark:text-white">{workspace.company.display_name}</strong>
+          </span>
+          <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+            {overviewData?.kpis?.currency || "INR"} ({currencySymbol})
+          </span>
+        </div>
+      </div>
+
+      {/* 12-item Commerce Navigation Bar */}
+      <CommerceNavigation
+        activeTab={activeTab}
+        onTabChange={handleSelectTab}
+        badges={badges}
+        permissions={permissions}
+      />
+
+      {/* Tab View Content */}
+      <div className="transition-all">
+        {activeTab === "overview" && (
+          <OverviewView
+            data={overviewData}
+            currency={overviewData.kpis.currency}
+            currencySymbol={currencySymbol}
+            onNavigateTab={handleNavigateTab}
+            onDateFilterChange={setDateFilter}
+            dateFilter={dateFilter}
+            permissions={permissions}
+          />
         )}
-      </section>
-      {workspace.permissions.includes("commerce.manage") && productRows.length > 0 && partyRows.length > 0 ? (
-        <form
-          className="flex flex-wrap items-end gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            createOrder.mutate({
-              party_id: String(form.get("party_id") || ""),
-              lines: [{ product_id: String(form.get("product_id") || ""), quantity: Number(form.get("quantity") || 1) }],
-            });
-          }}
-        >
-          <label className="text-sm">Customer
-            <select className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2" name="party_id" required>
-              {partyRows.map((row) => <option key={row.id} value={row.id}>{row.display_name}</option>)}
-            </select>
-          </label>
-          <label className="text-sm">Product
-            <select className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2" name="product_id" required>
-              {productRows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-            </select>
-          </label>
-          <label className="text-sm">Qty<input className="mt-1 block rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2" name="quantity" type="number" min={1} defaultValue={1} /></label>
-          <Button type="submit" disabled={createOrder.isPending}>Place order</Button>
-        </form>
-      ) : null}
-      <section>
-        <h2 className="text-lg font-medium">Orders</h2>
-        {orderRows.length === 0 ? <p className="mt-2 text-sm text-slate-500">Orders appear after you place one for a party.</p> : (
-          <ul className="mt-3 space-y-2 text-sm">
-            {orderRows.map((row) => (
-              <li key={row.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
-                {row.party} · {row.status} · {row.currency} {(row.total_minor / 100).toFixed(2)}
-              </li>
-            ))}
-          </ul>
+
+        {activeTab === "products" && (
+          <ProductsView
+            companyId={companyId}
+            currencySymbol={currencySymbol}
+            permissions={permissions}
+            initialCreateOpen={searchParams.get("action") === "create"}
+          />
         )}
-      </section>
+
+        {activeTab === "categories" && (
+          <CategoriesView companyId={companyId} permissions={permissions} />
+        )}
+
+        {activeTab === "price_lists" && (
+          <PriceListsView
+            companyId={companyId}
+            currencySymbol={currencySymbol}
+            permissions={permissions}
+          />
+        )}
+
+        {activeTab === "inventory" && (
+          <InventoryView
+            companyId={companyId}
+            currencySymbol={currencySymbol}
+            permissions={permissions}
+            initialAdjustOpen={searchParams.get("action") === "adjust"}
+            initialProductId={searchParams.get("productId") || undefined}
+          />
+        )}
+
+        {activeTab === "orders" && (
+          <OrdersView
+            companyId={companyId}
+            currencySymbol={currencySymbol}
+            permissions={permissions}
+            initialCreateOpen={searchParams.get("action") === "create"}
+          />
+        )}
+
+        {activeTab === "customers" && (
+          <CustomersView
+            companyId={companyId}
+            currencySymbol={currencySymbol}
+            permissions={permissions}
+            onNavigateTab={handleNavigateTab}
+            initialCreateOpen={searchParams.get("action") === "create"}
+          />
+        )}
+
+        {activeTab === "vendors" && (
+          <VendorsView
+            companyId={companyId}
+            currencySymbol={currencySymbol}
+            permissions={permissions}
+          />
+        )}
+
+        {activeTab === "discounts" && <DiscountsView companyId={companyId} />}
+
+        {activeTab === "returns" && <ReturnsView companyId={companyId} />}
+
+        {activeTab === "reports" && <ReportsView companyId={companyId} />}
+
+        {activeTab === "settings" && <SettingsView companyId={companyId} />}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { api, ApiError, clearCsrfToken } from "../../shared/api/client";
@@ -11,6 +11,7 @@ import { SelectField, TextField } from "../../shared/ui/Fields";
 import { LoadingState } from "../../shared/ui/States";
 import { maskEmail } from "../auth/email";
 import { ModuleStep } from "./ModuleStep";
+import { resolveCatalogModules, type ApiOnboardingModule } from "./modules";
 import { OnboardingShell, type OnboardingPhase } from "./OnboardingShell";
 
 const STATES = [
@@ -83,6 +84,7 @@ type Onboarding = {
     timezone: string;
     slug: string;
     status: string;
+    status_reason?: string | null;
   } | null;
   billing_profile: {
     billing_name: string;
@@ -232,6 +234,14 @@ export function OnboardingPage() {
   const current = useQuery({ queryKey: ["me"], queryFn: () => api<CurrentUser>("/api/v1/auth/me/") });
   const onboarding = useQuery({ queryKey: ["onboarding"], queryFn: () => api<Onboarding>("/api/v1/onboarding/") });
   const plans = useQuery({ queryKey: ["plans"], queryFn: () => api<PlanCatalog>("/api/v1/plans/") });
+  const onboardingModules = useQuery({
+    queryKey: ["onboarding-modules"],
+    queryFn: () => api<{ results: ApiOnboardingModule[]; count: number }>("/api/v1/onboarding/modules/"),
+  });
+  const availableCatalogModules = useMemo(
+    () => resolveCatalogModules(onboardingModules.data?.results ?? []),
+    [onboardingModules.data?.results]
+  );
   const companyForm = useForm<CompanyValues>({
     resolver: zodResolver(companySchema),
     defaultValues: { legal_name: "", display_name: "", slug: "" },
@@ -290,6 +300,19 @@ export function OnboardingPage() {
       sessionStorage.removeItem(`pulse-modules:${companyId}`);
     }
   }, [onboarding.data?.company_id]);
+
+  useEffect(() => {
+    if (onboardingModules.data?.results) {
+      const availableSlugs = new Set(onboardingModules.data.results.map((m) => m.slug));
+      setSelectedModules((prev) => {
+        const filtered = prev.filter((slug) => availableSlugs.has(slug));
+        if (filtered.length !== prev.length && onboarding.data?.company_id) {
+          sessionStorage.setItem(`pulse-modules:${onboarding.data.company_id}`, JSON.stringify(filtered));
+        }
+        return filtered;
+      });
+    }
+  }, [onboardingModules.data?.results, onboarding.data?.company_id]);
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ["onboarding"] });
@@ -544,6 +567,8 @@ export function OnboardingPage() {
     return (
       <OnboardingShell {...shell} wide heading={!moduleFocus} title="Choose your modules" description="Modules are optional. Start the trial anytime — you can add modules later.">
         <ModuleStep
+          modules={availableCatalogModules}
+          isLoading={onboardingModules.isLoading}
           onFocusChange={setModuleFocus}
           selected={selectedModules}
           onChange={(slugs) => {
@@ -565,6 +590,79 @@ export function OnboardingPage() {
             ?? (planUnavailable ? "The trial plan is not available yet. Refresh the page or contact support." : null)
           }
         />
+      </OnboardingShell>
+    );
+  }
+
+  if (progress.company?.status === "suspended" || progress.company?.status === "closed") {
+    const isSuspended = progress.company.status === "suspended";
+    return (
+      <OnboardingShell
+        {...shell}
+        title={isSuspended ? "Company Account Suspended" : "Company Account Closed"}
+        description={
+          isSuspended
+            ? "This company workspace has been suspended by the platform administrator."
+            : "This company workspace has been closed by the platform administrator."
+        }
+      >
+        <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-10 text-center sm:px-10">
+          <span
+            className={`mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl shadow-sm text-white ${
+              isSuspended ? "bg-amber-500" : "bg-rose-600"
+            }`}
+          >
+            {isSuspended ? (
+              <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            )}
+          </span>
+
+          <div className="mx-auto mt-6 max-w-md divide-y divide-slate-200 rounded-lg border border-slate-200 dark:border-slate-700 text-left text-sm">
+            <div className="flex justify-between px-4 py-3">
+              <span className="text-slate-500 dark:text-slate-400">Company</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">{progress.company.legal_name || progress.company.display_name}</span>
+            </div>
+            <div className="flex justify-between px-4 py-3">
+              <span className="text-slate-500 dark:text-slate-400">Status</span>
+              <span className={`font-semibold capitalize ${isSuspended ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>
+                {progress.company.status}
+              </span>
+            </div>
+            {progress.company.status_reason && (
+              <div className="px-4 py-3 bg-amber-50/50 dark:bg-amber-950/20">
+                <span className="text-xs uppercase font-semibold text-slate-500 dark:text-slate-400">Reason</span>
+                <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">
+                  {progress.company.status_reason}
+                </p>
+              </div>
+            )}
+            <div className="flex justify-between px-4 py-3">
+              <span className="text-slate-500 dark:text-slate-400">Access</span>
+              <span className="font-medium text-rose-600 dark:text-rose-400">Blocked</span>
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+            {isSuspended
+              ? "All company operations are paused. Your business records remain safe. Please contact your platform administrator."
+              : "This company account has been closed. Data remains safely retained."}
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Button type="button" onClick={() => { window.location.assign("/app"); }}>
+              View Account Status
+            </Button>
+          </div>
+        </section>
       </OnboardingShell>
     );
   }

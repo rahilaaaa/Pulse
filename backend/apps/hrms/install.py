@@ -1,4 +1,4 @@
-from apps.hrms.models import LeavePolicy
+from apps.hrms.models import HrmsActivation, LeavePolicy
 
 
 def on_install(*, company, user):
@@ -7,6 +7,7 @@ def on_install(*, company, user):
         name="Annual leave",
         defaults={"days_per_year": 12},
     )
+    HrmsActivation.objects.get_or_create(company=company)
 
 
 def on_uninstall(*, company, user):

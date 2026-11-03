@@ -37,7 +37,7 @@ export const SHELL_LINKS: ShellLink[] = [
   { code: "billing", label: "Billing & Plan", to: "/app/billing", icon: "billing", section: "Administration" },
   { code: "notifications", label: "Notifications", to: "/app/notifications", icon: "notifications", section: "Administration" },
   { code: "audit", label: "Audit", to: "/app/audit", icon: "audit", section: "Administration" },
-  { code: "hrms", label: "Leave", to: "/app/hrms", icon: "leave", section: "Administration" },
+  { code: "hrms", label: "HRMS", to: "/app/hrms", icon: "leave", section: "Workspace" },
   { code: "parties", label: "Parties", to: "/app/parties", icon: "parties", section: "Workspace" },
   { code: "projects", label: "Projects", to: "/app/projects", icon: "projects", section: "Workspace" },
   { code: "crm", label: "CRM", to: "/app/crm", icon: "crm", section: "Workspace" },

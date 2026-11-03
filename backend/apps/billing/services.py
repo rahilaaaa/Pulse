@@ -95,6 +95,11 @@ def select_plan(*, user, payload: dict, request) -> dict:
     company, state = _owned_onboarding(user)
     if state.billing_profile_completed_at is None:
         raise conflict("Complete the billing profile before choosing a plan.")
+    module_slugs = payload.get("module_slugs")
+    if module_slugs and isinstance(module_slugs, list):
+        from apps.modules_registry.services import validate_onboarding_modules
+
+        validate_onboarding_modules(module_slugs)
     plan_code, interval = _selection(payload)
     now = timezone.now()
     price = (

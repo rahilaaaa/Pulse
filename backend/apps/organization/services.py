@@ -31,6 +31,8 @@ def normalize_key(raw, field="key"):
 
 
 def _lock_company(company_id):
+    if connection.vendor != "postgresql":
+        return
     token = int(hashlib.sha256(f"organization:{company_id}".encode()).hexdigest()[:15], 16)
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_xact_lock(%s)", [token])

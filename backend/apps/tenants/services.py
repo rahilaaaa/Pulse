@@ -422,6 +422,15 @@ def _owned_onboarding(user: User) -> tuple[Company, OnboardingState]:
 
 
 def _company_payload(company: Company) -> dict:
+    status_reason = None
+    if company.status in {CompanyStatus.SUSPENDED, CompanyStatus.CLOSED}:
+        action = "company.suspended" if company.status == CompanyStatus.SUSPENDED else "company.closed"
+        log = AuditLog.objects.filter(company=company, action=action).order_by("-created_at").first()
+        if log and isinstance(log.after, dict):
+            status_reason = log.after.get("reason")
+        if not status_reason and isinstance(company.custom_data, dict):
+            status_reason = company.custom_data.get("suspension_reason" if company.status == CompanyStatus.SUSPENDED else "closure_reason")
+
     return {
         "id": str(company.id),
         "slug": company.slug,
@@ -430,6 +439,9 @@ def _company_payload(company: Company) -> dict:
         "status": company.status,
         "timezone": company.timezone,
         "country_code": company.country_code,
+        "suspended_at": company.suspended_at.isoformat() if company.suspended_at else None,
+        "closed_at": company.closed_at.isoformat() if company.closed_at else None,
+        "status_reason": status_reason,
     }
 
 
@@ -552,11 +564,56 @@ def _optional_text(value, field: str, details: list, *, maximum: int) -> str | N
     return cleaned or None
 
 
+COUNTRY_ALIASES = {
+    "INDIA": "IN",
+    "IND": "IN",
+    "UNITED STATES": "US",
+    "UNITED STATES OF AMERICA": "US",
+    "USA": "US",
+    "UNITED KINGDOM": "GB",
+    "UK": "GB",
+    "GREAT BRITAIN": "GB",
+    "UNITED ARAB EMIRATES": "AE",
+    "UAE": "AE",
+    "SINGAPORE": "SG",
+    "SGP": "SG",
+    "GERMANY": "DE",
+    "DEU": "DE",
+    "FRANCE": "FR",
+    "FRA": "FR",
+    "CANADA": "CA",
+    "CAN": "CA",
+    "AUSTRALIA": "AU",
+    "AUS": "AU",
+    "SAUDI ARABIA": "SA",
+    "KSA": "SA",
+    "QATAR": "QA",
+    "KUWAIT": "KW",
+    "BAHRAIN": "BH",
+    "OMAN": "OM",
+    "MALAYSIA": "MY",
+    "INDONESIA": "ID",
+    "PHILIPPINES": "PH",
+    "NETHERLANDS": "NL",
+    "SWITZERLAND": "CH",
+    "IRELAND": "IE",
+    "JAPAN": "JP",
+    "CHINA": "CN",
+    "BRAZIL": "BR",
+    "SOUTH AFRICA": "ZA",
+    "NEW ZEALAND": "NZ",
+}
+
 def _country(value, details: list) -> str:
-    if not isinstance(value, str) or len(value.strip()) != 2 or not value.strip().isalpha():
+    if not isinstance(value, str):
         details.append({"field": "country_code", "code": "invalid", "message": "Enter a 2-letter country code."})
         return ""
-    return value.strip().upper()
+    cleaned = value.strip().upper()
+    cleaned = COUNTRY_ALIASES.get(cleaned, cleaned)
+    if len(cleaned) != 2 or not cleaned.isalpha():
+        details.append({"field": "country_code", "code": "invalid", "message": "Enter a 2-letter country code."})
+        return ""
+    return cleaned
 
 
 def _state_code(value, field: str, details: list) -> str:

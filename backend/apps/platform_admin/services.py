@@ -1,12 +1,11 @@
 from datetime import datetime, time, timezone as datetime_timezone
 
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
-from django.utils.dateparse import parse_date
-
-from django.db import transaction
 from django.utils.crypto import get_random_string
+from django.utils.dateparse import parse_date
 
 from apps.audit.models import AuditLog
 from apps.authorization.models import CompanyRole, MembershipRoleAssignment, PlatformPermissionGrant
@@ -18,11 +17,12 @@ from apps.authorization.services import (
     platform_permission_codes,
     sync_platform_grants,
 )
+from apps.billing.models import Subscription, SubscriptionStatus
 from apps.billing.services import subscription_summary
 from apps.identity.models import User
 from apps.identity.password_reset import _issue_reset
 from apps.identity.serializers import normalize_email
-from apps.modules_registry.models import CompanyModuleInstallation, InstallationStatus
+from apps.modules_registry.models import CompanyModuleInstallation, InstallationStatus, ModuleDefinition
 from apps.organization.models import Department, Person, PersonStatus, UnitStatus
 from apps.tenants.models import (
     Company,
@@ -33,78 +33,45 @@ from apps.tenants.models import (
     MembershipStatus,
 )
 from common.api.errors import conflict, not_found, validation_error
-from common.api.pagination import paginate, page_errors
+from common.api.pagination import page_errors, paginate
+
+# Re-exports from sub-services for cohesive API
+from apps.platform_admin.billing_services import (  # noqa: F401
+    billing_overview,
+    change_company_subscription_plan,
+    list_platform_plans,
+    list_platform_subscriptions,
+)
+from apps.platform_admin.company_services import (  # noqa: F401
+    activate_company,
+    close_company,
+    create_platform_company,
+    get_company_detail as get_company,
+    list_companies,
+    list_company_audit_logs,
+    reactivate_company,
+    suspend_company,
+    update_company_metadata,
+)
+from apps.platform_admin.module_services import (  # noqa: F401
+    get_platform_module_detail,
+    install_company_module,
+    list_platform_modules,
+    uninstall_company_module,
+    update_platform_module_availability,
+)
+from apps.platform_admin.settings_services import (  # noqa: F401
+    get_platform_settings,
+    onboarding_monitoring,
+    platform_health_overview,
+    update_platform_settings,
+)
 
 
 def _iso(value):
     if value is None:
         return None
     return value.astimezone(datetime_timezone.utc).isoformat().replace("+00:00", "Z")
-
-SORTS = {
-    "created_at": ("created_at", "id"),
-    "-created_at": ("-created_at", "id"),
-    "display_name": ("display_name", "id"),
-    "-display_name": ("-display_name", "id"),
-    "slug": ("slug", "id"),
-    "-slug": ("-slug", "id"),
-}
-
-
-def list_companies(*, query_params) -> dict:
-    details = []
-    queryset = Company.objects.annotate(
-        membership_count=Count(
-            "memberships",
-            filter=Q(memberships__status=MembershipStatus.ACTIVE),
-        )
-    )
-
-    search = (query_params.get("q") or "").strip()
-    if len(search) > 100:
-        details.append({"field": "q", "code": "max_length", "message": "Enter at most 100 characters."})
-    elif search:
-        queryset = queryset.filter(
-            Q(display_name__icontains=search) | Q(legal_name__icontains=search) | Q(slug__icontains=search)
-        )
-
-    status = (query_params.get("status") or "").strip()
-    if status:
-        allowed = {choice.value for choice in CompanyStatus}
-        if status not in allowed:
-            details.append(
-                {
-                    "field": "status",
-                    "code": "invalid",
-                    "message": "Choose a valid company status.",
-                }
-            )
-        else:
-            queryset = queryset.filter(status=status)
-
-    created_from = _parse_bound(query_params.get("created_from"), field="created_from", details=details, end=False)
-    created_to = _parse_bound(query_params.get("created_to"), field="created_to", details=details, end=True)
-    if created_from and created_to and created_from > created_to:
-        details.append(
-            {"field": "created_to", "code": "invalid", "message": "The end date must be on or after the start date."}
-        )
-    if created_from:
-        queryset = queryset.filter(created_at__gte=created_from)
-    if created_to:
-        queryset = queryset.filter(created_at__lte=created_to)
-
-    sort = query_params.get("sort") or "-created_at"
-    if sort not in SORTS:
-        details.append({"field": "sort", "code": "invalid", "message": "Choose a valid sort field."})
-    details.extend(page_errors(query_params.get("page"), query_params.get("page_size")))
-
-    if details:
-        raise validation_error(details)
-
-    queryset = queryset.order_by(*SORTS[sort])
-    page = paginate(queryset, page_raw=query_params.get("page"), page_size_raw=query_params.get("page_size"))
-    page["results"] = [_serialize(company) for company in page["results"]]
-    return page
 
 
 def _parse_bound(raw, *, field: str, details: list, end: bool):
@@ -129,68 +96,101 @@ USER_SORTS = {
 }
 
 
+def _monthly_growth_trend():
+    now = timezone.now()
+    buckets = []
+    for i in range(5, -1, -1):
+        year = now.year
+        month = now.month - i
+        while month <= 0:
+            month += 12
+            year -= 1
+        start_date = datetime(year, month, 1, tzinfo=datetime_timezone.utc)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1, tzinfo=datetime_timezone.utc)
+        else:
+            end_date = datetime(year, month + 1, 1, tzinfo=datetime_timezone.utc)
+        count = Company.objects.filter(created_at__gte=start_date, created_at__lt=end_date).count()
+        buckets.append({
+            "key": start_date.strftime("%Y-%m"),
+            "label": start_date.strftime("%b %Y"),
+            "count": count,
+        })
+    return buckets
+
+
 def platform_overview() -> dict:
     by_status = {choice.value: 0 for choice in CompanyStatus}
     for row in Company.objects.values("status").annotate(total=Count("id")):
         by_status[row["status"]] = row["total"]
+
     active_memberships = CompanyMembership.objects.filter(status=MembershipStatus.ACTIVE)
+    total_memberships = CompanyMembership.objects.exclude(status=MembershipStatus.REMOVED).count()
+    pending_invites = MembershipInvitation.objects.filter(status=InvitationStatus.PENDING).count()
+
+    plan_counts = {}
+    for row in Subscription.objects.exclude(status=SubscriptionStatus.CANCELED).values("plan__name").annotate(total=Count("id")):
+        name = row["plan__name"] or "Unknown"
+        plan_counts[name] = row["total"]
+
+    module_adoption = [
+        {
+            "slug": mod.slug,
+            "name": mod.display_name,
+            "installed_count": CompanyModuleInstallation.objects.filter(module=mod, status=InstallationStatus.INSTALLED).count(),
+        }
+        for mod in ModuleDefinition.objects.all().order_by("display_name")
+    ]
+
+    recent_activities = []
+    for row in AuditLog.objects.select_related("actor", "company").order_by("-created_at", "id")[:10]:
+        recent_activities.append({
+            "id": str(row.id),
+            "action": row.action,
+            "object_type": row.object_type,
+            "actor_email": row.actor.email if row.actor else "System",
+            "actor_name": f"{row.actor.first_name} {row.actor.last_name}".strip() if row.actor else "System",
+            "company_id": str(row.company_id) if row.company_id else None,
+            "company_name": row.company.display_name if row.company else None,
+            "created_at": _iso(row.created_at),
+        })
+
+    billing_metrics = billing_overview()
+
     return {
-        "companies": {"total": sum(by_status.values()), "by_status": by_status},
+        "companies": {
+            "total": sum(by_status.values()),
+            "by_status": by_status,
+            "active": by_status.get(CompanyStatus.ACTIVE, 0),
+            "draft": by_status.get(CompanyStatus.DRAFT, 0),
+            "suspended": by_status.get(CompanyStatus.SUSPENDED, 0),
+            "closed": by_status.get(CompanyStatus.CLOSED, 0),
+        },
+        "memberships": {
+            "total": total_memberships,
+            "active": active_memberships.count(),
+            "pending_invitations": pending_invites,
+        },
+        "modules": {
+            "total_catalog": ModuleDefinition.objects.count(),
+            "total_installed": CompanyModuleInstallation.objects.filter(status=InstallationStatus.INSTALLED).count(),
+            "adoption": module_adoption,
+        },
+        "billing": billing_metrics,
         "users": {
             "total": User.objects.count(),
             "active": User.objects.filter(is_active=True).count(),
             "email_verified": User.objects.exclude(email_verified_at=None).count(),
             "in_companies": active_memberships.values("user_id").distinct().count(),
         },
-        "active_memberships": active_memberships.count(),
         "platform_grants": PlatformPermissionGrant.objects.values("user_id").distinct().count(),
+        "trends": {
+            "company_growth": _monthly_growth_trend(),
+            "lifecycle_distribution": by_status,
+            "plan_distribution": plan_counts,
+        },
+        "recent_activity": recent_activities,
     }
-
-
-def get_company(*, company_id) -> dict:
-    company = (
-        Company.objects.annotate(
-            membership_count=Count(
-                "memberships",
-                filter=Q(memberships__status=MembershipStatus.ACTIVE),
-            )
-        )
-        .filter(pk=company_id)
-        .first()
-    )
-    if company is None:
-        raise not_found("That company was not found.")
-
-    memberships = (
-        CompanyMembership.objects.select_related("user")
-        .filter(company=company)
-        .exclude(status=MembershipStatus.REMOVED)
-        .order_by("created_at", "id")
-    )
-    members = []
-    for membership in memberships:
-        role_names = list(
-            MembershipRoleAssignment.objects.filter(membership=membership)
-            .order_by("role__name")
-            .values_list("role__name", flat=True)
-        )
-        user = membership.user
-        members.append(
-            {
-                "membership_id": str(membership.id),
-                "user_id": str(user.id),
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "is_active": user.is_active,
-                "email_verified": user.email_verified_at is not None,
-                "membership_status": membership.status,
-                "roles": role_names,
-                "joined_at": _iso(membership.joined_at),
-                "created_at": _iso(membership.created_at),
-            }
-        )
-    return {**_serialize(company), "legal_name": company.legal_name, "timezone": company.timezone, "members": members}
 
 
 def get_company_dashboard(*, company_id) -> dict:
@@ -309,38 +309,6 @@ def list_users(*, query_params) -> dict:
     return page
 
 
-def list_audit_logs(*, query_params) -> dict:
-    details = page_errors(query_params.get("page"), query_params.get("page_size"))
-    if details:
-        raise validation_error(details)
-    # Platform console only: exclude company/workspace audit rows.
-    queryset = AuditLog.objects.filter(company__isnull=True).order_by("-created_at", "id")
-    page = paginate(queryset, page_raw=query_params.get("page"), page_size_raw=query_params.get("page_size"))
-    page["results"] = [
-        {
-            "id": str(row.id),
-            "company_id": None,
-            "actor_user_id": str(row.actor_id) if row.actor_id else None,
-            "action": row.action,
-            "object_type": row.object_type,
-            "object_id": str(row.object_id) if row.object_id else None,
-            "request_id": str(row.request_id) if row.request_id else None,
-            "created_at": row.created_at.astimezone(datetime_timezone.utc).isoformat().replace("+00:00", "Z"),
-        }
-        for row in page["results"]
-    ]
-    return page
-
-
-def empty_record_page(*, query_params) -> dict:
-    details = page_errors(query_params.get("page"), query_params.get("page_size"))
-    if details:
-        raise validation_error(details)
-    page = paginate(Company.objects.none(), page_raw=query_params.get("page"), page_size_raw=query_params.get("page_size"))
-    page["results"] = []
-    return page
-
-
 def _serialize_user(user: User, *, include_permissions: bool = False) -> dict:
     membership_count = getattr(user, "membership_count", None)
     if membership_count is None:
@@ -358,6 +326,7 @@ def _serialize_user(user: User, *, include_permissions: bool = False) -> dict:
         "is_active": user.is_active,
         "email_verified": user.email_verified_at is not None,
         "created_at": user.created_at.astimezone(datetime_timezone.utc).isoformat().replace("+00:00", "Z"),
+        "last_login": _iso(user.last_login),
         "membership_count": membership_count,
         "platform_grant_count": platform_grant_count,
     }
@@ -426,7 +395,6 @@ def create_platform_user(*, actor: User, payload: dict, request) -> dict:
         user = User.objects.filter(email=email).first()
         created = False
         if user is None:
-            # Unusable random password until they complete the invite email.
             user = User.objects.create_user(
                 email=email,
                 password=get_random_string(40),
@@ -599,7 +567,21 @@ def update_platform_user(*, actor: User, user_id, payload: dict, request) -> dic
 
 
 def list_platform_permissions() -> list[dict]:
-    return list_platform_permission_catalog()
+    items = list_platform_permission_catalog()
+    counts = dict(
+        PlatformPermissionGrant.objects.filter(user__is_active=True)
+        .values("permission_id")
+        .annotate(total=Count("user_id", distinct=True))
+        .values_list("permission_id", "total")
+    )
+    return [
+        {
+            "code": item["code"],
+            "description": item["description"],
+            "active_grants_count": counts.get(item["code"], 0),
+        }
+        for item in items
+    ]
 
 
 def send_platform_user_password_reset(*, actor: User, user_id, request) -> dict:
@@ -623,6 +605,118 @@ def send_platform_user_password_reset(*, actor: User, user_id, request) -> dict:
         request_id=_request_id(request),
     )
     return {"sent": True}
+
+
+SENSITIVE_KEYS = {"password", "token", "secret", "hash", "key", "authorization"}
+
+
+def _sanitize_payload(payload):
+    if not isinstance(payload, dict):
+        return payload
+    cleaned = {}
+    for k, v in payload.items():
+        if any(s in k.lower() for s in SENSITIVE_KEYS):
+            cleaned[k] = "••••••••"
+        elif isinstance(v, dict):
+            cleaned[k] = _sanitize_payload(v)
+        elif isinstance(v, list):
+            cleaned[k] = [_sanitize_payload(item) if isinstance(item, dict) else item for item in v]
+        else:
+            cleaned[k] = v
+    return cleaned
+
+
+def list_audit_logs(*, query_params) -> dict:
+    details = page_errors(query_params.get("page"), query_params.get("page_size"))
+    queryset = AuditLog.objects.select_related("actor", "company").order_by("-created_at", "id")
+
+    search = (query_params.get("q") or "").strip()
+    if search:
+        queryset = queryset.filter(
+            Q(action__icontains=search)
+            | Q(object_type__icontains=search)
+            | Q(actor__email__icontains=search)
+            | Q(company__display_name__icontains=search)
+        )
+
+    action = (query_params.get("action") or "").strip()
+    if action:
+        queryset = queryset.filter(action__istartswith=action)
+
+    actor_id = (query_params.get("actor_id") or "").strip()
+    if actor_id:
+        queryset = queryset.filter(actor_id=actor_id)
+
+    company_id = (query_params.get("company_id") or "").strip()
+    if company_id:
+        queryset = queryset.filter(company_id=company_id)
+
+    created_from = _parse_bound(query_params.get("created_from"), field="created_from", details=details, end=False)
+    created_to = _parse_bound(query_params.get("created_to"), field="created_to", details=details, end=True)
+    if created_from and created_to and created_from > created_to:
+        details.append(
+            {"field": "created_to", "code": "invalid", "message": "The end date must be on or after the start date."}
+        )
+    if created_from:
+        queryset = queryset.filter(created_at__gte=created_from)
+    if created_to:
+        queryset = queryset.filter(created_at__lte=created_to)
+
+    if details:
+        raise validation_error(details)
+
+    page = paginate(queryset, page_raw=query_params.get("page"), page_size_raw=query_params.get("page_size"))
+    page["results"] = [
+        {
+            "id": str(row.id),
+            "company_id": str(row.company_id) if row.company_id else None,
+            "company_name": row.company.display_name if row.company else None,
+            "actor_user_id": str(row.actor_id) if row.actor_id else None,
+            "actor_email": row.actor.email if row.actor else "System",
+            "actor_name": f"{row.actor.first_name} {row.actor.last_name}".strip() if row.actor else "System",
+            "action": row.action,
+            "object_type": row.object_type,
+            "object_id": str(row.object_id) if row.object_id else None,
+            "request_id": str(row.request_id) if row.request_id else None,
+            "ip_address": row.ip_address,
+            "before": _sanitize_payload(row.before),
+            "after": _sanitize_payload(row.after),
+            "created_at": _iso(row.created_at),
+        }
+        for row in page["results"]
+    ]
+    return page
+
+
+def get_audit_log_detail(*, log_id) -> dict:
+    row = AuditLog.objects.select_related("actor", "company").filter(pk=log_id).first()
+    if row is None:
+        raise not_found("Audit log not found.")
+    return {
+        "id": str(row.id),
+        "company_id": str(row.company_id) if row.company_id else None,
+        "company_name": row.company.display_name if row.company else None,
+        "actor_user_id": str(row.actor_id) if row.actor_id else None,
+        "actor_email": row.actor.email if row.actor else "System",
+        "actor_name": f"{row.actor.first_name} {row.actor.last_name}".strip() if row.actor else "System",
+        "action": row.action,
+        "object_type": row.object_type,
+        "object_id": str(row.object_id) if row.object_id else None,
+        "request_id": str(row.request_id) if row.request_id else None,
+        "ip_address": row.ip_address,
+        "before": _sanitize_payload(row.before),
+        "after": _sanitize_payload(row.after),
+        "created_at": _iso(row.created_at),
+    }
+
+
+def empty_record_page(*, query_params) -> dict:
+    details = page_errors(query_params.get("page"), query_params.get("page_size"))
+    if details:
+        raise validation_error(details)
+    page = paginate(Company.objects.none(), page_raw=query_params.get("page"), page_size_raw=query_params.get("page_size"))
+    page["results"] = []
+    return page
 
 
 def _request_ip(request):
@@ -655,5 +749,5 @@ def _serialize(company: Company) -> dict:
         "slug": company.slug,
         "status": company.status,
         "created_at": company.created_at.astimezone(datetime_timezone.utc).isoformat().replace("+00:00", "Z"),
-        "membership_count": company.membership_count,
+        "membership_count": getattr(company, "membership_count", 0),
     }

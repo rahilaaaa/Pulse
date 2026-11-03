@@ -32,7 +32,7 @@ from apps.modules_registry.models import CompanyModuleInstallation, Installation
 from apps.modules_registry.services import catalog_for_company
 from apps.organization.models import Department, Person, PersonStatus, UnitStatus
 from apps.tenants.invitations import accept_invitation, join_with_invitation, load_pending_invitation, preview_invitation
-from apps.tenants.models import CompanyMembership, InvitationStatus, MembershipInvitation, MembershipStatus
+from apps.tenants.models import CompanyMembership, CompanyStatus, InvitationStatus, MembershipInvitation, MembershipStatus
 from apps.tenants.services import _ip, _request_id, company_settings_payload, update_company_settings
 from common.api.errors import conflict, not_found, permission_denied, validation_error
 from common.api.exceptions import PulseAPIException
@@ -118,24 +118,46 @@ def _workspace_membership(user, membership):
 
 
 def _workspace_payload(membership) -> dict:
+    company = membership.company
+    is_blocked = company.status in {CompanyStatus.SUSPENDED, CompanyStatus.CLOSED}
+    status_reason = None
+    if company.status == CompanyStatus.SUSPENDED:
+        log = AuditLog.objects.filter(company=company, action="company.suspended").order_by("-created_at").first()
+        if log and isinstance(log.after, dict):
+            status_reason = log.after.get("reason")
+        if not status_reason and isinstance(company.custom_data, dict):
+            status_reason = company.custom_data.get("suspension_reason")
+    elif company.status == CompanyStatus.CLOSED:
+        log = AuditLog.objects.filter(company=company, action="company.closed").order_by("-created_at").first()
+        if log and isinstance(log.after, dict):
+            status_reason = log.after.get("reason")
+        if not status_reason and isinstance(company.custom_data, dict):
+            status_reason = company.custom_data.get("closure_reason")
+
     return {
         "company": {
-            "id": str(membership.company_id),
-            "legal_name": membership.company.legal_name,
-            "display_name": membership.company.display_name,
-            "slug": membership.company.slug,
-            "status": membership.company.status,
-            "timezone": membership.company.timezone,
+            "id": str(company.id),
+            "legal_name": company.legal_name,
+            "display_name": company.display_name,
+            "slug": company.slug,
+            "status": company.status,
+            "timezone": company.timezone,
+            "suspended_at": company.suspended_at.isoformat() if company.suspended_at else None,
+            "closed_at": company.closed_at.isoformat() if company.closed_at else None,
+            "status_reason": status_reason,
         },
-        "permissions": sorted(effective_permission_codes(membership)),
-        "navigation": navigation_for(membership),
-        "subscription": subscription_summary(membership.company),
-        "dashboard": dashboard_for_membership(membership),
+        "permissions": [] if is_blocked else sorted(effective_permission_codes(membership)),
+        "navigation": [] if is_blocked else navigation_for(membership),
+        "subscription": subscription_summary(company),
+        "dashboard": {"widgets": []} if is_blocked else dashboard_for_membership(membership),
     }
 
 
 def _open_workspace(request):
-    return _workspace_membership(request.user, _company_for(request))
+    membership = _company_for(request)
+    if membership.company.status in {CompanyStatus.SUSPENDED, CompanyStatus.CLOSED}:
+        return membership
+    return _workspace_membership(request.user, membership)
 
 
 class WorkspaceView(APIView):
@@ -163,7 +185,10 @@ class WorkspaceSwitchView(APIView):
         )
         if membership is None:
             raise not_found()
-        opened = _workspace_membership(request.user, membership)
+        if membership.company.status in {CompanyStatus.SUSPENDED, CompanyStatus.CLOSED}:
+            opened = membership
+        else:
+            opened = _workspace_membership(request.user, membership)
         bootstrap_company_access(opened.company, opened.company.created_by or request.user)
         remember_active_company(request, opened.company_id)
         return Response(_workspace_payload(opened))
@@ -174,6 +199,8 @@ class WorkspaceEnterView(APIView):
 
     def post(self, request):
         membership = _company_for(request)
+        if membership.company.status in {CompanyStatus.SUSPENDED, CompanyStatus.CLOSED}:
+            return Response({"entered": False, "status": membership.company.status})
         state = getattr(membership.company, "onboarding_state", None)
         if state and state.workspace_entered_at is None and state.subscription_activated_at:
             state.workspace_entered_at = timezone.now()
@@ -268,6 +295,8 @@ def _invitation_payload(row, *, permission_codes):
     return {
         "id": str(row.id),
         "email": row.email,
+        "person_id": str(row.person_id) if row.person_id else None,
+        "person_name": f"{row.person.first_name} {row.person.last_name}".strip() if row.person_id else "",
         "status": row.status,
         "expires_at": row.expires_at.isoformat(),
         "accepted_at": row.accepted_at.isoformat() if row.accepted_at else None,
@@ -413,6 +442,23 @@ class InvitationListView(APIView):
             )
         if MembershipInvitation.objects.filter(company_id=company_id, email=email, status=InvitationStatus.PENDING).exists():
             raise conflict("An invitation is already pending.", [{"field": "email", "code": "unique", "message": "An invitation is already pending."}])
+        person_id = payload.get("person_id")
+        target_person = None
+        if person_id:
+            target_person = Person.objects.filter(company_id=company_id, pk=person_id).first()
+            if target_person is None:
+                raise not_found("That Person was not found in this company.")
+            if target_person.status != PersonStatus.ACTIVE:
+                raise conflict("That Person is inactive. Reactivate them before sending an invitation.")
+            if target_person.work_email and normalize_email(target_person.work_email) != email:
+                raise validation_error([{"field": "person_id", "code": "email_mismatch", "message": "The selected Person's work email must match the invitation."}])
+        else:
+            matching_people = list(
+                Person.objects.filter(company_id=company_id, work_email__iexact=email).order_by("created_at")[:2]
+            )
+            if len(matching_people) > 1:
+                raise conflict("More than one Person matches this email. Select the intended Person explicitly.")
+            target_person = matching_people[0] if matching_people else None
         from apps.tenants.custom_fields import normalize_custom_data
         from apps.tenants.models import FieldEntity
 
@@ -428,6 +474,7 @@ class InvitationListView(APIView):
         _send_invitation_email(email=email, token=token)
         invitation = MembershipInvitation.objects.create(
             company_id=company_id,
+            person=target_person,
             email=email,
             token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),
             invited_by=request.user,

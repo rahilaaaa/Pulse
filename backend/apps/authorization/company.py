@@ -1,6 +1,12 @@
 from django.db import transaction
 
-from apps.authorization.catalog import COMPANY_PERMISSIONS, NAV_CATALOG, OWNER_FLOOR, ROLE_TEMPLATES
+from apps.authorization.catalog import (
+    COMPANY_PERMISSIONS,
+    NAV_CATALOG,
+    OWNER_FLOOR,
+    RESTRICTED_COMPANY_PERMISSION_CODES,
+    ROLE_TEMPLATES,
+)
 from apps.authorization.models import (
     CompanyRole,
     CompanyRoleNavigation,
@@ -29,7 +35,7 @@ def ensure_company_catalog() -> None:
             code=code,
             defaults={"name": name, "description": description, "is_system": True, "is_owner_role": is_owner},
         )
-        wanted = set(all_codes if limited is None else limited)
+        wanted = set(all_codes if limited is None else limited) - RESTRICTED_COMPANY_PERMISSION_CODES
         RoleTemplatePermission.objects.filter(template=template).exclude(permission_id__in=wanted).delete()
         for permission_code in wanted:
             RoleTemplatePermission.objects.get_or_create(template=template, permission_id=permission_code)
@@ -96,11 +102,13 @@ def assign_default_member_role(membership, *, assigned_by=None) -> bool:
 
 
 def effective_permission_codes(membership) -> set[str]:
-    if MembershipRoleAssignment.objects.filter(membership=membership, role__is_owner_role=True).exists():
-        return {code for code, _description, _module in COMPANY_PERMISSIONS}
-    return set(
+    role_permissions = set(
         CompanyRolePermission.objects.filter(role__assignments__membership=membership).values_list("permission_id", flat=True)
     )
+    if MembershipRoleAssignment.objects.filter(membership=membership, role__is_owner_role=True).exists():
+        all_codes = {code for code, _description, _module in COMPANY_PERMISSIONS}
+        return (all_codes - RESTRICTED_COMPANY_PERMISSION_CODES) | (role_permissions & RESTRICTED_COMPANY_PERMISSION_CODES)
+    return role_permissions
 
 
 def require_membership(user, company_id):

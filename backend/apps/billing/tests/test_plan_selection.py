@@ -94,20 +94,27 @@ class PlanSelectionTests(TestCase):
             format="json",
         )
         self.client.put("/api/v1/onboarding/billing-profile/", BILLING, format="json")
+        rejected = self.client.post(
+            "/api/v1/onboarding/plan/",
+            {"plan_code": "growth", "billing_interval": "year", "module_slugs": ["hrms", "finance"]},
+            format="json",
+        )
+        self.assertEqual(rejected.status_code, 409)
+        self.assertIn("currently not available for installation", rejected.data["error"]["message"])
+
         selected = self.client.post(
             "/api/v1/onboarding/plan/",
-            {"plan_code": "growth", "billing_interval": "year", "module_slugs": ["hrms", "crm"]},
+            {"plan_code": "growth", "billing_interval": "year", "module_slugs": ["hrms"]},
             format="json",
         )
         self.assertEqual(selected.status_code, 200, selected.data)
         self.assertEqual(selected.data["installed_modules"], ["hrms"])
-        self.assertIn("crm", selected.data["skipped_modules"])
         company = Company.objects.get(pk=self.company_id)
         self.assertEqual(list(CompanyModuleInstallation.objects.filter(company=company).values_list("module_id", flat=True)), ["hrms"])
         self.assertTrue(LeavePolicy.objects.filter(company=company, name="Annual leave").exists())
-        blocked = self.client.post(f"/api/v1/companies/{company.id}/modules/crm/install/", {}, format="json")
+        blocked = self.client.post(f"/api/v1/companies/{company.id}/modules/finance/install/", {}, format="json")
         self.assertEqual(blocked.status_code, 409)
-        self.assertFalse(CompanyModuleInstallation.objects.filter(company=company, module_id="crm").exists())
+        self.assertFalse(CompanyModuleInstallation.objects.filter(company=company, module_id="finance").exists())
         workspace = self.client.get("/api/v1/workspace/")
         self.assertEqual(workspace.status_code, 200)
         self.assertIn("company.view", workspace.data["permissions"])

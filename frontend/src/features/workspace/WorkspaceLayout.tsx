@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { api, clearCsrfToken } from "../../shared/api/client";
+import { api, clearCsrfToken, ApiError } from "../../shared/api/client";
+import { AccountStatusScreen } from "./AccountStatusScreen";
 import { ThemeToggle } from "../../shared/theme/ThemeToggle";
 import { PulseMark } from "../../shared/ui/PulseMark";
 import { LoadingState } from "../../shared/ui/States";
@@ -21,7 +22,8 @@ const TITLES: Record<string, string> = {
   "/app/billing": "Billing & Plan",
   "/app/notifications": "Notifications",
   "/app/audit": "Audit",
-  "/app/hrms": "Leave",
+  "/app/hrms": "HRMS",
+  "/app/hrms/leave": "Leave",
   "/app/parties": "Parties",
   "/app/projects": "Projects",
   "/app/crm": "CRM",
@@ -63,23 +65,24 @@ export function WorkspaceLayout() {
   });
 
   const companyId = workspace.data?.company.id ?? "";
+  const isCompanyActive = workspace.data?.company.status === "active";
   const directory = useQuery({
     queryKey: ["people", companyId],
     queryFn: () => api<{ results: PersonRow[] }>(`/api/v1/companies/${companyId}/people/`),
-    enabled: Boolean(companyId),
+    enabled: Boolean(companyId) && isCompanyActive,
     retry: false,
   });
   const notices = useQuery({
     queryKey: ["notifications", companyId],
     queryFn: () => api<{ results: Array<{ id: string; title: string; read: boolean; created_at: string }>; unread_count: number }>(`/api/v1/companies/${companyId}/notifications/`),
-    enabled: Boolean(companyId),
+    enabled: Boolean(companyId) && isCompanyActive,
   });
 
   useEffect(() => {
-    if (workspace.data) {
+    if (workspace.data && isCompanyActive) {
       enter.mutate();
     }
-  }, [workspace.data]);
+  }, [workspace.data, isCompanyActive]);
 
   if (workspace.isLoading) {
     return (
@@ -89,10 +92,64 @@ export function WorkspaceLayout() {
     );
   }
   if (workspace.isError || !workspace.data) {
-    return <Navigate to="/onboarding" replace />;
+    if (workspace.error instanceof ApiError && workspace.error.status === 403) {
+      return (
+        <AccountStatusScreen
+          type="error"
+          message={workspace.error.message || "This company workspace is currently unavailable."}
+          user={me.data}
+          companies={me.data?.memberships ?? []}
+          onSwitchCompany={(id) => switchCompany.mutate(id)}
+          onSignOut={() => logout.mutate()}
+        />
+      );
+    }
+    if (me.data && me.data.memberships.length === 0) {
+      return <Navigate to="/onboarding" replace />;
+    }
+    return (
+      <AccountStatusScreen
+        type="error"
+        message="Unable to access this company workspace."
+        user={me.data}
+        companies={me.data?.memberships ?? []}
+        onSwitchCompany={(id) => switchCompany.mutate(id)}
+        onSignOut={() => logout.mutate()}
+      />
+    );
   }
   const data = workspace.data;
   const companies = me.data?.memberships ?? [];
+
+  if (data.company.status === "suspended") {
+    return (
+      <AccountStatusScreen
+        type="suspended"
+        company={data.company}
+        reason={data.company.status_reason}
+        date={data.company.suspended_at}
+        user={me.data}
+        companies={companies}
+        onSwitchCompany={(id) => switchCompany.mutate(id)}
+        onSignOut={() => logout.mutate()}
+      />
+    );
+  }
+
+  if (data.company.status === "closed") {
+    return (
+      <AccountStatusScreen
+        type="closed"
+        company={data.company}
+        reason={data.company.status_reason}
+        date={data.company.closed_at}
+        user={me.data}
+        companies={companies}
+        onSwitchCompany={(id) => switchCompany.mutate(id)}
+        onSignOut={() => logout.mutate()}
+      />
+    );
+  }
   const allowed = new Set(data.navigation.map((item) => item.code));
   const links = SHELL_LINKS.filter((item) => {
     if (item.code === "notifications") return allowed.has("dashboard");

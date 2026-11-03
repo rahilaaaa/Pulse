@@ -384,4 +384,416 @@ Future / unsupported:
 
 ---
 
-*Aligned with Pulse `FieldType`, `CustomEntity`, and `organization` hierarchy behaviour.*
+---
+
+## L. Installed Module Matrix & Entitlements
+
+Aether Precision subscribes to the **Enterprise Plan** (`enterprise`) billed annually at INR 2,49,999. Under this subscription tier, the company is entitled to all 4 available Pulse modules with up to a 250-person directory cap.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 AETHER PRECISION MODULE INSTALLATION STATE                  │
+├─────────────────────┬──────────────┬─────────────┬──────────────────────────┤
+│ Module Slug         │ Status       │ Version     │ Notes                    │
+├─────────────────────┼──────────────┼─────────────┼──────────────────────────┤
+│ hrms                │ INSTALLED    │ 2.5.0       │ Multi-shift factory ops  │
+│ projects            │ INSTALLED    │ 1.0.0       │ Line expansions & capex  │
+│ crm                 │ INSTALLED    │ 1.0.0       │ Tier-1 OEM accounts      │
+│ commerce            │ NOT INSTALLED│ 1.0.0       │ Custom B2B contract mfg  │
+│ finance             │ COMING SOON  │ —           │ Modeled via CF / Custom  │
+│ inventory           │ COMING SOON  │ —           │ Plant assets via Custom  │
+│ procurement         │ COMING SOON  │ —           │ Vendors via Parties      │
+│ sales / helpdesk    │ COMING SOON  │ —           │ Plant safety desk in HRMS│
+└─────────────────────┴──────────────┴─────────────┴──────────────────────────┘
+```
+
+### Module Entitlement & Licensing Parameters
+- **Plan Code**: `enterprise`
+- **Max People Cap**: 250 active people (Current seed uses 18 employees, ~7% utilization).
+- **Installed Modules**: `hrms`, `projects`, `crm`.
+- **Installed By**: `suresh.patil@aetherprecision.example` (Managing Director & Owner).
+- **Custom Entities In Use**: 8 of 20 entity quota consumed.
+
+---
+
+## M. Module Configuration & Domain Master Data
+
+### 1. Legal Entity & Factory Registrations
+- **Legal Entity ID**: `LE-MFG-01`
+- **Legal Name**: Aether Precision Components Private Limited
+- **Registration / CIN**: `U29253PN2015PTC154321`
+- **Tax Identifier (GSTIN)**: `27AABCA4321K1Z2`
+- **Permanent Account Number (PAN)**: `AABCA4321K`
+- **Statutory Accounts & Licences**:
+  - Factories Act License Number: `PUN-FAC-2015-8841`
+  - Provident Fund (EPF) Establishment Code: `MH/BAN/0074128/000`
+  - Employees' State Insurance (ESIC) Code: `31000847210000606`
+  - Maharashtra Professional Tax Registration: `27412398765P`
+
+### 2. Work Locations & Factory Plants
+| Location Code | Location Name | Address | Coordinates | Geofence | HQ? |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `LOC-PUN-HQ` | Baner Corporate Office | 6th Floor, Synergy IT Park, Baner, Pune 411045 | 18.5590° N, 73.7868° E | 100m | Yes |
+| `LOC-CHK-PLT` | Chakan Machining Plant | Plot B-14, Chakan MIDC Phase II, Pune 410501 | 18.7560° N, 73.8440° E | 300m | No |
+| `LOC-CHN-PLT` | Chennai Finishing Plant | SIPCOT Industrial Park, Sriperumbudur 602106 | 12.9800° N, 79.9500° E | 250m | No |
+
+### 3. Designations & Industrial Grading
+| Code | Designation Title | Grade / Track | Min CTC (LPA) | Max CTC (LPA) |
+| :--- | :--- | :--- | :--- | :--- |
+| `DES-MD` | Managing Director | Executive (E8) | 50.0 | 85.0 |
+| `DES-PLANT-HEAD` | General Manager & Plant Head | Operations (M7) | 36.0 | 50.0 |
+| `DES-PROD-MGR` | Production Manager | Operations (M6) | 22.0 | 32.0 |
+| `DES-CNC-LEAD` | CNC Cell Lead & Supervisor | Shop Floor (T5) | 12.0 | 18.0 |
+| `DES-SR-CNC-PRG` | Senior CNC Programmer | Shop Floor (T5) | 10.0 | 16.0 |
+| `DES-CNC-OPR` | CNC Machine Operator | Shop Floor (T3) | 4.8 | 8.0 |
+| `DES-MAINT-HEAD` | Plant Maintenance Head | Engineering (M6) | 20.0 | 28.0 |
+| `DES-MECH-TECH` | Mechanical Maintenance Tech | Shop Floor (T3) | 4.5 | 7.5 |
+| `DES-QA-LEAD` | Quality Assurance Lead | Quality (M6) | 18.0 | 26.0 |
+| `DES-CMM-INSP` | CMM Quality Inspector | Quality (T4) | 6.0 | 10.0 |
+| `DES-TOOL-SPEC` | Tooling & Fixture Specialist | Shop Floor (T4) | 7.5 | 12.0 |
+| `DES-PLN-LEAD` | Production Planning Lead | Operations (M5) | 14.0 | 20.0 |
+| `DES-SCM-MGR` | Supply Chain Manager | Commercial (M6) | 18.0 | 26.0 |
+| `DES-HR-LEAD` | Head of Plant HR & IR | Administration (M6) | 18.0 | 25.0 |
+| `DES-HR-OFFICER` | Personnel & IR Officer | Administration (M4) | 6.0 | 9.5 |
+| `DES-FIN-HEAD` | Chief Financial Officer | Finance (M7) | 32.0 | 45.0 |
+| `DES-COST-ACC` | Senior Plant Cost Accountant | Finance (M5) | 12.0 | 18.0 |
+| `DES-SAFETY-OFF` | Environmental Safety Officer | EHS (T5) | 9.0 | 14.0 |
+
+### 4. Rotating Shift Rosters & Factory Attendance Policies
+- **Shift `SHIFT-A-MORN`**: Morning Shift (06:00 – 14:00 IST). Mandatory 30-min tea/breakfast break. Min 7.5 hours for full credit.
+- **Shift `SHIFT-B-EVE`**: Evening Shift (14:00 – 22:00 IST). Mandatory 30-min dinner break. Shift allowance: INR 150/shift.
+- **Shift `SHIFT-C-NIGHT`**: Night Shift (22:00 – 06:00 IST). Mandatory 30-min midnight meal. Shift allowance: INR 250/shift.
+- **Shift `SHIFT-GEN`**: General Office Shift (09:00 – 17:30 IST) with 60-min lunch.
+- **Attendance Policy `POL-MFG-BIO`**:
+  - Verification Modes: Biometric kiosk integration (zkTeck / eSSL face & thumb terminal) and GPS factory gate punch.
+  - Grace Period: 15 minutes. Deductions applied for > 3 late punches in a calendar month.
+  - Continuous Overtime (OT): Automatically calculated for logged floor hours > 8.5 hours at 2.0x normal hourly rate.
+
+### 5. Leave Policies (Factories Act Compliant)
+| Code | Policy Name | Entitlement / Year | Accrual Method | Carry Forward | Encashable |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `LP-CASUAL` | Casual Leave (CL) | 10 days | 0.83 days/month | No (Lapses Dec 31) | No |
+| `LP-SICK` | Sick Leave (SL) | 10 days | Upfront on Jan 1 | Max 30 days | No |
+| `LP-EARNED` | Factory Earned Leave (EL) | 21 days | 1 day per 20 worked | Max 60 days | Yes (Factories Act) |
+| `LP-COMP-OFF` | Compensatory Off (CO) | As earned | Breakdown support | 60 days validity | No |
+
+### 6. Salary Structures & Industrial Wage Formulation
+- **Structure Code `SAL-STRUCT-MFG-STAFF`**: Salaried engineering & managerial staff (Basic 45%, HRA 20%, Special 25%, Conveyance 10%, EPF 12%, PT).
+- **Structure Code `SAL-STRUCT-MFG-OPERATOR`**: Shop floor hourly wage & allowance structure:
+  - Basic + Dearness Allowance (DA): 50%
+  - House Rent Allowance (HRA): 15%
+  - Machine Hazard & Heat Allowance: 15%
+  - Attendance Bonus: INR 1,500/month (for 100% scheduled presence)
+  - Statutory: EPF (12%), ESIC (0.75% employee + 3.25% employer), Maharashtra PT (INR 200).
+
+### 7. Project Management Configuration
+- **Global Settings**:
+  - Task Identifier Prefix: `MFG`
+  - Allow Cross-Department Collaborators: `True`
+  - Require Manager Timesheet Approval: `True`
+  - Live Start/Stop Timer Enabled: `True`
+
+---
+
+## N. HRMS Sample Data
+
+### 1. 18 Core Employments Linked 1:1 to People
+| Person Code | Employee Name | Work Location | Designation | Joining Date | Confirmation Date | Annual CTC (INR) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `EMP-M-001` | Suresh Patil | `LOC-PUN-HQ` | `DES-MD` | 2015-08-01 | 2015-08-01 | 65,00,000 |
+| `EMP-M-002` | Ramesh Kulkarni | `LOC-CHK-PLT` | `DES-PLANT-HEAD` | 2016-03-01 | 2016-09-01 | 42,00,000 |
+| `EMP-M-003` | Vikas Shinde | `LOC-CHK-PLT` | `DES-PROD-MGR` | 2017-06-15 | 2017-12-15 | 28,00,000 |
+| `EMP-M-004` | Amit Deshmukh | `LOC-CHK-PLT` | `DES-CNC-LEAD` | 2018-01-10 | 2018-07-10 | 16,00,000 |
+| `EMP-M-005` | Sachin Jadhav | `LOC-CHK-PLT` | `DES-SR-CNC-PRG` | 2018-09-01 | 2019-03-01 | 14,00,000 |
+| `EMP-M-006` | Sunita Rao | `LOC-CHK-PLT` | `DES-QA-LEAD` | 2017-11-01 | 2018-05-01 | 24,00,000 |
+| `EMP-M-007` | Mahesh Pawar | `LOC-CHK-PLT` | `DES-MAINT-HEAD` | 2018-04-15 | 2018-10-15 | 25,00,000 |
+| `EMP-M-008` | Ganesh Gaikwad | `LOC-CHK-PLT` | `DES-CNC-OPR` | 2019-02-01 | 2019-08-01 | 6,50,000 |
+| `EMP-M-009` | Nitin More | `LOC-CHK-PLT` | `DES-CNC-OPR` | 2020-01-15 | 2020-07-15 | 5,80,000 |
+| `EMP-M-010` | Deepak Chavan | `LOC-CHK-PLT` | `DES-TOOL-SPEC` | 2019-07-01 | 2020-01-01 | 11,00,000 |
+| `EMP-M-011` | Snehal Kadam | `LOC-CHK-PLT` | `DES-HR-LEAD` | 2018-10-01 | 2019-04-01 | 22,00,000 |
+| `EMP-M-012` | Rahul Bhosale | `LOC-CHK-PLT` | `DES-PLN-LEAD` | 2020-08-01 | 2021-02-01 | 17,00,000 |
+| `EMP-M-013` | Santosh Mane | `LOC-CHK-PLT` | `DES-MECH-TECH` | 2021-03-15 | 2021-09-15 | 6,00,000 |
+| `EMP-M-014` | Sanjay Jagtap | `LOC-PUN-HQ` | `DES-FIN-HEAD` | 2017-01-01 | 2017-07-01 | 38,00,000 |
+| `EMP-M-015` | Anand Kale | `LOC-PUN-HQ` | `DES-SCM-MGR` | 2019-11-15 | 2020-05-15 | 24,00,000 |
+| `EMP-M-016` | Pooja Thorat | `LOC-CHK-PLT` | `DES-CMM-INSP` | 2021-06-01 | 2021-12-01 | 8,50,000 |
+| `EMP-M-017` | Vilas Salunkhe | `LOC-CHK-PLT` | `DES-SAFETY-OFF` | 2022-01-10 | 2022-07-10 | 12,00,000 |
+| `EMP-M-018` | Vijay Ghorpade | `LOC-CHN-PLT` | `DES-CNC-OPR` | 2022-09-01 | 2023-03-01 | 5,50,000 |
+
+### 2. Factory Biometric Punch Logs (Sample October 2026 Day)
+| Employee | Shift | In Punch | Out Punch | Total Hours | Verification Terminal | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `EMP-M-008` (Ganesh Gaikwad) | Shift A | 05:54:12 | 14:05:30 | 8h 11m | Biometric Terminal Gate 2 | PRESENT |
+| `EMP-M-009` (Nitin More) | Shift A | 05:58:45 | 14:02:10 | 8h 03m | Biometric Terminal Gate 2 | PRESENT |
+| `EMP-M-004` (Amit Deshmukh) | Shift A | 05:48:00 | 15:30:00 | 9h 42m | Biometric Terminal Gate 1 | PRESENT (+1.2h OT) |
+| `EMP-M-013` (Santosh Mane) | General | 09:05:10 | 17:35:00 | 8h 30m | Facial Recognition Main | PRESENT |
+| `EMP-M-016` (Pooja Thorat) | General | 08:55:00 | 17:32:00 | 8h 37m | Facial Recognition QA Lab | PRESENT |
+| `EMP-M-018` (Vijay Ghorpade) | Shift B | 13:50:00 | 22:08:15 | 8h 18m | Chennai Kiosk #1 | PRESENT |
+
+### 3. Leave Requests & Approvals
+- **Request `LR-MFG-001`**:
+  - Employee: `EMP-M-009` (Nitin More) | Policy: `LP-CASUAL` (2 days: 2026-10-14 to 2026-10-15)
+  - Reason: "Agricultural harvesting at ancestral village in Satara"
+  - Approver: `EMP-M-004` (Amit Deshmukh) | Status: `APPROVED`
+- **Request `LR-MFG-002`**:
+  - Employee: `EMP-M-005` (Sachin Jadhav) | Policy: `LP-EARNED` (4 days: 2026-11-04 to 2026-11-07)
+  - Reason: "Diwali family festival"
+  - Approver: `EMP-M-003` (Vikas Shinde) | Status: `PENDING`
+
+### 4. October 2026 Factory Payroll Execution & Payslips
+- **Payroll Period**: `2026-10-01` to `2026-10-31`
+- **Payroll Run Code**: `PR-MFG-2026-10`
+- **Execution Status**: `COMPLETED` (Approved by Suresh Patil, Processed by Snehal Kadam)
+- **Total Gross Payroll**: INR 34,75,000
+- **Total Net Disbursed**: INR 29,48,200
+- **Total EPF Remittance**: INR 2,82,000
+- **Total ESIC Remittance**: INR 28,450
+- **Sample Payslip (`PS-MFG-2026-10-008` — Ganesh Gaikwad, CNC Operator)**:
+  - Basic + DA: INR 27,083
+  - HRA: INR 8,125
+  - Machine Hazard Allowance: INR 8,125
+  - Attendance Incentive Bonus: INR 1,500
+  - Overtime (6.5 hours @ 2x rate): INR 2,150
+  - Gross Earnings: INR 46,983
+  - Deductions: EPF (INR 1,800) + ESIC (INR 352) + PT (INR 200) = INR 2,352
+  - Net Pay Disbursed: **INR 44,631**
+
+---
+
+## O. Projects & Work Management Sample Data
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    AETHER PRECISION ENGINEERING PROJECTS                    │
+├────────────┬─────────────────────────────┬───────────┬─────────────┬────────┤
+│ Project    │ Name                        │ Priority  │ Budget      │ Owner  │
+├────────────┼─────────────────────────────┼───────────┼─────────────┼────────┤
+│ PRJ-MFG-01 │ Chakan Plant CNC Line 3     │ HIGH      │ ₹1,45,00,000│ EMP-004│
+│ PRJ-MFG-02 │ IATF 16949 Recertification  │ URGENT    │ ₹24,00,000  │ EMP-006│
+│ PRJ-MFG-03 │ Aerospace Titanium Machining│ MEDIUM    │ ₹65,00,000  │ EMP-003│
+└────────────┴─────────────────────────────┴───────────┴─────────────┴────────┘
+```
+
+### 1. Project `PRJ-MFG-01`: "Chakan Plant CNC Line 3 Expansion"
+- **Code**: `CNC3` | **Status**: `ACTIVE` | **Is Billable**: `False` (Internal Capex)
+- **Owning Organization Unit**: `OU-MFG-PUN` (Chakan Plant)
+- **Project Manager**: `EMP-M-004` (Amit Deshmukh)
+- **Dates**: `2026-03-01` to `2026-12-30` | **Progress**: 72%
+- **Milestones**:
+  - `M1`: Civil Foundation & Heavy Power Cabling (Achieved: 2026-05-30)
+  - `M2`: Machine Delivery & Rigging for Mazak 5-Axis VMC (Achieved: 2026-08-15)
+  - `M3`: Tooling Calibration, Trial Run & First Article Inspection (Due: 2026-11-15)
+- **Work Tasks**:
+  - `TSK-MFG-101` — "Level and anchor Mazak VTC-800 machine bed to 0.005mm tolerance"
+    - Assignee: `EMP-M-007` (Mahesh Pawar) | Status: `COMPLETED` | Est: 40h | Act: 38h
+  - `TSK-MFG-102` — "Program Fanuc CNC macro subroutines for hydraulic manifold roughing"
+    - Assignee: `EMP-M-005` (Sachin Jadhav) | Status: `IN_PROGRESS` | Priority: `HIGH` | Est: 35h | Act: 24h
+  - `TSK-MFG-103` — "Run 50-piece pilot batch on EN8 alloy steel and log CMM deviations"
+    - Assignee: `EMP-M-016` (Pooja Thorat) | Status: `TODO` | Priority: `URGENT` | Est: 20h | Act: 0h
+
+### 2. Project `PRJ-MFG-02`: "ISO 9001:2015 & IATF 16949 Recertification"
+- **Code**: `ISO9` | **Status**: `ACTIVE` | **Owning Unit**: `OU-MFG-QA`
+- **Project Manager**: `EMP-M-006` (Sunita Rao) | **Progress**: 85%
+- **Tasks**:
+  - `TSK-MFG-201` — "Internal audit of calibration records for Vernier calipers and micrometers" (Status: `COMPLETED`)
+  - `TSK-MFG-202` — "Update Failure Mode and Effects Analysis (FMEA) for transmission flanges" (Status: `IN_REVIEW`)
+
+### 3. Plant Timesheet Entries
+- **Entry `TE-MFG-001`**:
+  - Worker: `EMP-M-005` (Sachin Jadhav) | Task: `TSK-MFG-102`
+  - Work Date: `2026-10-20` | Duration: 480 minutes (8.0h)
+  - Description: "Optimized toolpaths in Mastercam for 5-axis helical milling to reduce cycle time by 14%."
+  - Status: `APPROVED` by Amit Deshmukh.
+
+---
+
+## P. Other Module Data (CRM)
+
+Aether Precision acts as a Tier-1 and Tier-2 precision engineering supplier to automotive and industrial OEMs. Accounts and opportunities reside in `apps.crm`, linked to `parties.Party`:
+
+### 1. OEM Accounts & Master Parties
+| Account Code | Account Name | Master Party | Industry Sector | Annual Contract Value | Key Contact |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `ACC-MFG-001` | Tata Motors Commercial Vehicle Div | `Tata Motors Limited` (Org) | Automotive OEM | INR 1,80,00,000 | Rajesh Gokhale (VP Sourcing) |
+| `ACC-MFG-002` | Bharat Heavy Forgings Limited | `Bharat Heavy Forgings` (Org) | Heavy Industrial | INR 95,00,000 | K. Venkataraman (Head SCM) |
+| `ACC-MFG-003` | Mahindra Precision Systems | `Mahindra Precision Systems` (Org) | Auto Transmission | INR 1,20,00,000 | Milind Tambe (General Manager) |
+
+### 2. CRM Opportunities & Pipeline Deals
+- **Opportunity `OPP-MFG-2026-01`**:
+  - Name: "Tata Motors — EV Gearbox Aluminum Housing Machining (60,000 pcs/yr)"
+  - Account: `ACC-MFG-001` (Tata Motors)
+  - Stage: `NEGOTIATION`
+  - Amount: **INR 1,80,00,000** (Amount minor: `1800000000`)
+  - Close Date: `2026-11-30` | Owner: `EMP-M-001` (Suresh Patil)
+- **Opportunity `OPP-MFG-2026-02`**:
+  - Name: "Bharat Heavy Forgings — High-Pressure Flange Subcontract"
+  - Account: `ACC-MFG-002` (Bharat Heavy Forgings)
+  - Stage: `WON` | Amount: **INR 95,00,000** (Amount minor: `950000000`)
+  - Close Date: `2026-08-31` | Owner: `EMP-M-001` (Suresh Patil)
+- **Opportunity `OPP-MFG-2026-03`**:
+  - Name: "Mahindra Precision — Tractor Transmission Spline Shafts"
+  - Account: `ACC-MFG-003` (Mahindra Precision)
+  - Stage: `PROPOSAL` | Amount: **INR 1,20,00,000** (Amount minor: `1200000000`)
+
+---
+
+## Q. Cross-Module Relationships & Entity Linkages
+
+```mermaid
+erDiagram
+    TENANTS_COMPANY ||--o{ ORGANIZATION_DEPARTMENT : contains
+    TENANTS_COMPANY ||--o{ ORGANIZATION_PERSON : directory
+    TENANTS_COMPANY ||--o{ HRMS_EMPLOYMENT : contracts
+    TENANTS_COMPANY ||--o{ PROJECTS_PROJECT : executes
+    TENANTS_COMPANY ||--o{ CUSTOM_ENTITIES : manages
+
+    ORGANIZATION_PERSON ||--|| HRMS_EMPLOYMENT : "1:1 Link"
+    ORGANIZATION_PERSON ||--o{ PROJECTS_PROJECT_MEMBER : participates
+    ORGANIZATION_PERSON ||--o{ CUSTOM_MACHINES : "assigned technician"
+    ORGANIZATION_PERSON ||--o{ CUSTOM_QUALITY : "inspector"
+
+    PROJECTS_PROJECT ||--o{ PROJECTS_PROJECT_TASK : drives
+    CUSTOM_MACHINES ||--o{ CUSTOM_QUALITY : inspects
+    CUSTOM_VENDORS ||--o{ CUSTOM_DELIVERIES : supplies
+```
+
+### Traceability Mapping Table
+| From Entity | Field | Target Entity | Functional Linkage |
+| :--- | :--- | :--- | :--- |
+| `organization.Person` | 1:1 ID | `hrms.Employment.person` | Connects employee identity with biometric punches and factory payroll. |
+| `custom_entity.machines` | `assigned-technician` | `organization.Person` | Assigns mechanical technician responsible for preventative maintenance. |
+| `custom_entity.quality-inspections` | `inspector` | `organization.Person` | QA technician certifying batch tolerance compliance. |
+| `projects.ProjectTask` | `assignee` | `organization.Person` | Tooling / maintenance lead executing machine bed rigging and calibration. |
+| `crm.Account` | `party` | `parties.Party` | External master record for OEM client legal entity and GST billing. |
+
+---
+
+## R. Role-Based End-to-End Scenarios & Persona Walkthroughs
+
+### Persona 1: Suresh Patil (Managing Director)
+- **Login**: `suresh.patil@aetherprecision.example` | **Role**: Company Owner
+- **Daily Walkthrough**:
+  1. Opens **Company Overview**: Inspects plant operational summary (18 active employees, 100% attendance on Shift A).
+  2. Opens **CRM Module**: Reviews the INR 1.8 Cr EV Gearbox RFP with Tata Motors; notes technical clarification needed on CMM tolerance.
+  3. Checks **HRMS Payroll Tab**: Reviews October payroll run total (INR 29.48L net); authorizes bank disbursement file.
+
+### Persona 2: Ramesh Kulkarni (Plant Head & GM)
+- **Login**: `ramesh.kulkarni@aetherprecision.example` | **Role**: Department Manager (`OU-MFG-PUN`)
+- **Daily Walkthrough**:
+  1. Inspects **Plant Projects Dashboard**: Checks `PRJ-MFG-01` milestone M3 status; reviews progress on Mazak 5-axis installation.
+  2. Reviews **Timesheets**: Approves 8.0 hours logged by Sachin Jadhav on CNC toolpath programming.
+  3. Verifies Shift Handover: Confirms Shift A completed 250 units before handing over line to Shift B.
+
+### Persona 3: Sunita Rao (Quality Assurance Lead)
+- **Login**: `sunita.rao@aetherprecision.example` | **Role**: QA Lead (`OU-MFG-QA`)
+- **Daily Walkthrough**:
+  1. Reviews **Quality Inspections**: Checks lot QI-2026-001 (Pass) on VMC-01.
+  2. Opens **Projects Module**: Manages tasks under `PRJ-MFG-02 (IATF 16949 Recertification)`.
+  3. Submits leave request for upcoming ISO auditor training conference.
+
+### Persona 4: Amit Deshmukh (CNC Cell Lead & Programmer)
+- **Login**: `amit.deshmukh@aetherprecision.example` | **Role**: Cell Lead / Shift Supervisor
+- **Daily Walkthrough**:
+  1. Arrives at Chakan factory at 05:48 AM; clocks in via Biometric Terminal Gate 1.
+  2. Opens **Projects Kanban**: Moves task `TSK-MFG-102` to `In Progress`.
+  3. Supervises operators Ganesh and Nitin on CNC Cell A; logs 1.2 hours approved overtime.
+
+---
+
+## S. Cross-Module Workflows
+
+### Workflow 1: New Production Line Capex from Procurement to Shift Handover
+```mermaid
+sequenceDiagram
+    autonumber
+    actor MD as Suresh Patil (MD)
+    actor Plant as Ramesh Kulkarni (Plant Head)
+    actor Tool as Sachin Jadhav (Programmer)
+    participant PRJ as Projects Module
+    participant CUST as Custom Entities
+    participant HRMS as HRMS Module
+
+    MD->>PRJ: Approves Capex Budget for Line 3 (INR 1.45 Cr)
+    Plant->>PRJ: Creates PRJ-MFG-01 & Milestones
+    Plant->>CUST: Adds Machine Record (MCH-VMC-02) in Custom Records Studio
+    Plant->>PRJ: Assigns Toolpath Programming Task to Sachin Jadhav
+    Tool->>HRMS: Clocks in via Plant Biometric Gate (Shift A)
+    Tool->>PRJ: Executes Trial Run & Submits 8.0h Timesheet
+    Plant->>PRJ: Approves Timesheet & Marks Milestone Achieved
+```
+
+---
+
+## T. Seed Execution Order & Dependencies
+
+```
+1. Platform Catalogs (Permissions, Modules, Standard Role Templates)
+   ↓
+2. Billing Plan & Price Setup (Ensure 'enterprise' plan with included_module_slugs)
+   ↓
+3. Tenant Company Creation (Aether Precision, slug='aether-precision', legal entity, billing profile)
+   ↓
+4. Custom Unit Types & Org Tree (Divisions, Plants, Production Areas, Lines, Cells)
+   ↓
+5. People Directory & User Accounts (18 Person records, Memberships, Roles)
+   ↓
+6. External Parties Master (OEM Clients, Raw Material Vendors, Subcontractors)
+   ↓
+7. Custom Fields & Custom Entities (Production Lines, Machines, Quality Inspections, Deliveries)
+   ↓
+8. Module Installation (Call install_module for 'hrms', 'projects', 'crm')
+   ↓
+9. HRMS Domain Master (LegalEntity, WorkLocations, Designations, Shift Rosters, Policies)
+   ↓
+10. HRMS Core Records (18 Employments, Biometric Punch Sessions, Leave Balances, Payroll Run)
+   ↓
+11. Projects Domain Records (ProjectSettings, Projects, Members, Milestones, Tasks, Timesheets)
+   ↓
+12. CRM Domain Records (Accounts linked to Parties, Contacts, Leads, Opportunities)
+   ↓
+13. Post-Seed Validation Assertions & Audit Trail
+```
+
+---
+
+## U. Validation Queries & Known Limitations
+
+### 1. Database Verification Queries (PostgreSQL / Django ORM)
+```python
+from apps.tenants.models import Company
+from apps.organization.models import Department, Person
+from apps.modules_registry.models import CompanyModuleInstallation
+from apps.hrms.models import Employment, AttendanceSession, LeaveRequest, PayrollRun
+from apps.projects.models import Project, ProjectTask, ProjectTimeEntry
+from apps.crm.models import Account, Opportunity
+
+co = Company.objects.get(slug="aether-precision")
+
+# Assert Core Counts
+assert Department.objects.filter(company=co).count() == 10
+assert Person.objects.filter(company=co).count() == 18
+assert CompanyModuleInstallation.objects.filter(company=co, status="installed").count() == 3
+
+# Assert HRMS Counts
+assert Employment.objects.filter(company=co).count() == 18
+assert AttendanceSession.objects.filter(company=co).count() >= 18
+assert LeaveRequest.objects.filter(company=co).count() >= 2
+assert PayrollRun.objects.filter(company=co).count() >= 1
+
+# Assert Projects Counts
+assert Project.objects.filter(company=co).count() == 3
+assert ProjectTask.objects.filter(company=co).count() >= 5
+assert ProjectTimeEntry.objects.filter(company=co).count() >= 1
+
+# Assert CRM Counts
+assert Account.objects.filter(company=co).count() == 3
+assert Opportunity.objects.filter(company=co).count() == 3
+print("AETHER PRECISION ALL SEED ASSERTIONS PASSED!")
+```
+
+### 2. Known Platform Limitations & Architectural Boundaries
+1. **Direct PLC/IoT Telemetry**: Pulse HRMS and Projects track human labor, shifts, and task milestones; live MQTT/OPC-UA telemetry from CNC machines is connected via external middleware or custom entity API endpoints.
+2. **ESIC Digital Return Sync**: ESIC wage contributions are accurately calculated according to Indian statutory rules, but XML return generation is an enterprise export feature.
+
+---
+
+*Document version: 2.0 (Comprehensive Multi-Module Platform Integration — Aligned with Pulse Platform Matrix).*

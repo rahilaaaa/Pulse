@@ -5,29 +5,56 @@ from rest_framework.views import APIView
 
 from apps.authorization.permissions import HasPlatformPermission
 from apps.platform_admin.services import (
+    activate_company,
+    billing_overview,
+    change_company_subscription_plan,
+    close_company,
+    create_platform_company,
     create_platform_user,
     empty_record_page,
+    get_audit_log_detail,
     get_company,
     get_company_dashboard,
+    get_platform_module_detail,
+    get_platform_settings,
     get_user,
+    install_company_module,
     list_audit_logs,
     list_companies,
+    list_company_audit_logs,
+    list_platform_modules,
     list_platform_permissions,
+    list_platform_plans,
+    list_platform_subscriptions,
     list_users,
+    onboarding_monitoring,
+    platform_health_overview,
     platform_overview,
+    reactivate_company,
     send_platform_user_password_reset,
+    suspend_company,
+    uninstall_company_module,
+    update_company_metadata,
+    update_platform_module_availability,
+    update_platform_settings,
     update_platform_user,
 )
 
 
 class PlatformCompanyListView(APIView):
-    required_platform_permission = "platform.companies.view"
+    required_platform_permissions = {
+        "GET": "platform.companies.view",
+        "POST": "platform.companies.manage",
+    }
     permission_classes = [IsAuthenticated, HasPlatformPermission]
 
     @extend_schema(
         parameters=[
             OpenApiParameter(name="q", type=str, required=False),
             OpenApiParameter(name="status", type=str, required=False),
+            OpenApiParameter(name="plan", type=str, required=False),
+            OpenApiParameter(name="subscription_status", type=str, required=False),
+            OpenApiParameter(name="module", type=str, required=False),
             OpenApiParameter(name="created_from", type=str, required=False),
             OpenApiParameter(name="created_to", type=str, required=False),
             OpenApiParameter(name="sort", type=str, required=False),
@@ -38,13 +65,63 @@ class PlatformCompanyListView(APIView):
     def get(self, request):
         return Response(list_companies(query_params=request.query_params))
 
+    def post(self, request):
+        payload = create_platform_company(actor=request.user, payload=request.data, request=request)
+        return Response(payload, status=201)
+
 
 class PlatformCompanyDetailView(APIView):
-    required_platform_permission = "platform.companies.view"
+    required_platform_permissions = {
+        "GET": "platform.companies.view",
+        "PATCH": "platform.companies.manage",
+    }
     permission_classes = [IsAuthenticated, HasPlatformPermission]
 
     def get(self, request, company_id):
         return Response(get_company(company_id=company_id))
+
+    def patch(self, request, company_id):
+        return Response(update_company_metadata(actor=request.user, company_id=company_id, payload=request.data, request=request))
+
+
+class PlatformCompanyActivateView(APIView):
+    required_platform_permission = "platform.companies.manage"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def post(self, request, company_id):
+        return Response(activate_company(actor=request.user, company_id=company_id, request=request))
+
+
+class PlatformCompanySuspendView(APIView):
+    required_platform_permission = "platform.companies.manage"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def post(self, request, company_id):
+        return Response(suspend_company(actor=request.user, company_id=company_id, payload=request.data, request=request))
+
+
+class PlatformCompanyReactivateView(APIView):
+    required_platform_permission = "platform.companies.manage"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def post(self, request, company_id):
+        return Response(reactivate_company(actor=request.user, company_id=company_id, request=request))
+
+
+class PlatformCompanyCloseView(APIView):
+    required_platform_permission = "platform.companies.manage"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def post(self, request, company_id):
+        return Response(close_company(actor=request.user, company_id=company_id, payload=request.data, request=request))
+
+
+class PlatformCompanyAuditListView(APIView):
+    required_platform_permission = "platform.companies.view"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request, company_id):
+        return Response(list_company_audit_logs(company_id=company_id, query_params=request.query_params))
 
 
 class PlatformCompanyDashboardView(APIView):
@@ -53,6 +130,109 @@ class PlatformCompanyDashboardView(APIView):
 
     def get(self, request, company_id):
         return Response(get_company_dashboard(company_id=company_id))
+
+
+class PlatformCompanyModuleInstallView(APIView):
+    required_platform_permission = "platform.modules.manage"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def post(self, request, company_id, slug):
+        return Response(install_company_module(actor=request.user, company_id=company_id, slug=slug, request=request), status=200)
+
+
+class PlatformCompanyModuleUninstallView(APIView):
+    required_platform_permission = "platform.modules.manage"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def post(self, request, company_id, slug):
+        return Response(uninstall_company_module(actor=request.user, company_id=company_id, slug=slug, request=request), status=200)
+
+
+class PlatformCompanySubscriptionChangeView(APIView):
+    required_platform_permission = "platform.billing.manage"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def post(self, request, company_id):
+        return Response(
+            change_company_subscription_plan(actor=request.user, company_id=company_id, payload=request.data, request=request),
+            status=200,
+        )
+
+
+class PlatformModuleListView(APIView):
+    required_platform_permission = "platform.modules.manage"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request):
+        return Response(list_platform_modules())
+
+
+class PlatformModuleDetailView(APIView):
+    required_platform_permissions = {
+        "GET": "platform.modules.manage",
+        "PATCH": "platform.modules.manage",
+    }
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request, slug):
+        return Response(get_platform_module_detail(slug=slug))
+
+    def patch(self, request, slug):
+        return Response(update_platform_module_availability(actor=request.user, slug=slug, payload=request.data, request=request))
+
+
+class PlatformBillingOverviewView(APIView):
+    required_platform_permission = "platform.billing.view"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request):
+        return Response(billing_overview())
+
+
+class PlatformSubscriptionListView(APIView):
+    required_platform_permission = "platform.billing.view"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request):
+        return Response(list_platform_subscriptions(query_params=request.query_params))
+
+
+class PlatformBillingPlanListView(APIView):
+    required_platform_permission = "platform.billing.view"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request):
+        return Response(list_platform_plans())
+
+
+class PlatformSettingsView(APIView):
+    required_platform_permissions = {
+        "GET": "platform.operations.view",
+        "PATCH": "platform.operations.view",
+    }
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request):
+        return Response(get_platform_settings())
+
+    def patch(self, request):
+        return Response(update_platform_settings(actor=request.user, payload=request.data, request=request))
+
+
+class PlatformHealthView(APIView):
+    required_platform_permission = "platform.operations.view"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request):
+        return Response(platform_health_overview())
+
+
+class PlatformOnboardingMonitorView(APIView):
+    required_platform_permission = "platform.companies.view"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request):
+        return Response(onboarding_monitoring())
 
 
 class PlatformOverviewView(APIView):
@@ -115,6 +295,14 @@ class PlatformAuditListView(APIView):
 
     def get(self, request):
         return Response(list_audit_logs(query_params=request.query_params))
+
+
+class PlatformAuditDetailView(APIView):
+    required_platform_permission = "platform.audit.view"
+    permission_classes = [IsAuthenticated, HasPlatformPermission]
+
+    def get(self, request, log_id):
+        return Response(get_audit_log_detail(log_id=log_id))
 
 
 class PlatformEmptyRecordView(APIView):

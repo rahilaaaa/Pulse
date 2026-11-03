@@ -53,3 +53,19 @@ class MemberCompanyDetailView(APIView):
 
     def get(self, request, company_id):
         return Response(get_member_company(user=request.user, company_id=company_id))
+
+
+class OnboardingModulesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.modules_registry.services import list_onboarding_modules
+
+        return Response(list_onboarding_modules())
+
+    def post(self, request):
+        from apps.modules_registry.services import validate_onboarding_modules
+
+        slugs = request.data.get("modules") or request.data.get("module_slugs") or []
+        validate_onboarding_modules(slugs)
+        return Response({"valid": True, "selected": slugs})

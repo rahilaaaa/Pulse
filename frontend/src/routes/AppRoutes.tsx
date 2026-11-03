@@ -7,11 +7,18 @@ import { RegisterPage } from "../features/auth/RegisterPage";
 import { VerifyEmailPage } from "../features/auth/VerifyEmailPage";
 import { WelcomePage } from "../features/auth/WelcomePage";
 import { AuditLogsPage } from "../features/platform/AuditLogsPage";
+import { BillingPlansPage } from "../features/platform/BillingPlansPage";
 import { CompaniesPage } from "../features/platform/CompaniesPage";
 import { CompanyDetailPage } from "../features/platform/CompanyDetailPage";
+import { ModuleCatalogPage } from "../features/platform/ModuleCatalogPage";
+import { ModuleDetailPage } from "../features/platform/ModuleDetailPage";
+import { OnboardingMonitorPage } from "../features/platform/OnboardingMonitorPage";
 import { OverviewPage } from "../features/platform/OverviewPage";
+import { PermissionsCatalogPage } from "../features/platform/PermissionsCatalogPage";
+import { PlatformHealthPage } from "../features/platform/PlatformHealthPage";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
-import { RecordsPage } from "../features/platform/RecordsPage";
+import { PlatformSettingsPage } from "../features/platform/PlatformSettingsPage";
+import { SubscriptionsPage } from "../features/platform/SubscriptionsPage";
 import { UserDetailPage } from "../features/platform/UserDetailPage";
 import { UsersPage } from "../features/platform/UsersPage";
 import { OnboardingPage } from "../features/onboarding/OnboardingPage";
@@ -21,6 +28,7 @@ import { BillingPage } from "../features/workspace/BillingPage";
 import { CommercePage } from "../features/workspace/CommercePage";
 import { CrmPage } from "../features/workspace/CrmPage";
 import { LeavePage } from "../features/workspace/LeavePage";
+import { HrmsPage } from "../features/workspace/HrmsPage";
 import { ModulesPage } from "../features/workspace/ModulesPage";
 import { NotificationsPage } from "../features/workspace/NotificationsPage";
 import { OrganizationPage } from "../features/workspace/OrganizationPage";
@@ -62,11 +70,13 @@ export function AppRoutes() {
           <Route path="roles" element={<RolesPage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="modules" element={<ModulesPage />} />
+          <Route path="modules/:slug" element={<ModulesPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="custom-entities" element={<CustomEntitiesIndexPage />} />
           <Route path="custom-entities/:entityId" element={<CustomEntityRecordsPage />} />
           <Route path="audit" element={<AuditPage />} />
-          <Route path="hrms" element={<LeavePage />} />
+          <Route path="hrms" element={<HrmsPage />} />
+          <Route path="hrms/leave" element={<LeavePage />} />
           <Route path="parties" element={<PartiesPage />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="crm" element={<CrmPage />} />
@@ -76,12 +86,17 @@ export function AppRoutes() {
           <Route index element={<OverviewPage />} />
           <Route path="companies" element={<CompaniesPage />} />
           <Route path="companies/:companyId" element={<CompanyDetailPage />} />
+          <Route path="onboarding" element={<OnboardingMonitorPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
-          <Route path="billing" element={<RecordsPage title="Subscriptions and billing" path="/api/v1/platform/billing/" />} />
-          <Route path="modules" element={<RecordsPage title="Modules" path="/api/v1/platform/modules/" />} />
+          <Route path="permissions" element={<PermissionsCatalogPage />} />
+          <Route path="billing" element={<SubscriptionsPage />} />
+          <Route path="billing/plans" element={<BillingPlansPage />} />
+          <Route path="modules" element={<ModuleCatalogPage />} />
+          <Route path="modules/:slug" element={<ModuleDetailPage />} />
+          <Route path="settings" element={<PlatformSettingsPage />} />
           <Route path="audit" element={<AuditLogsPage />} />
-          <Route path="settings" element={<RecordsPage title="Platform settings" path="/api/v1/platform/settings/" />} />
+          <Route path="health" element={<PlatformHealthPage />} />
         </Route>
       </Route>
       <Route path="/" element={<HomeRedirect />} />

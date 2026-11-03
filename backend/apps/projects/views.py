@@ -2,29 +2,31 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.authorization.company import require_permission
-from apps.modules_registry.models import CompanyModuleInstallation, InstallationStatus
-from apps.organization.models import Person
-from apps.projects.models import Project, ProjectStatus, ProjectTask, TaskStatus
-from common.api.errors import not_found, validation_error
-
-
-def _installed(company):
-    if not CompanyModuleInstallation.objects.filter(
-        company=company, module_id="projects", status=InstallationStatus.INSTALLED
-    ).exists():
-        raise not_found("Projects is not installed.")
-
-
-def _project_payload(row: Project) -> dict:
-    return {
-        "id": str(row.id),
-        "name": row.name,
-        "description": row.description,
-        "status": row.status,
-        "owner_person_id": str(row.owner_person_id) if row.owner_person_id else None,
-        "task_count": row.tasks.count(),
-    }
+from apps.authorization.company import require_membership, require_permission
+from apps.projects.services import (
+    add_project_member,
+    add_task_comment,
+    create_milestone,
+    create_project,
+    create_task,
+    decide_timesheet,
+    ensure_projects_installed,
+    get_or_create_settings,
+    get_overview_dashboard,
+    get_project_detail,
+    get_reports_summary,
+    get_task_detail,
+    get_team_workload,
+    list_projects,
+    list_tasks,
+    list_timesheets,
+    log_time_entry,
+    remove_project_member,
+    start_stop_timer,
+    submit_timesheets,
+    update_project,
+    update_task,
+)
 
 
 class ProjectListView(APIView):
@@ -32,29 +34,21 @@ class ProjectListView(APIView):
 
     def get(self, request, company_id):
         membership = require_permission(request.user, company_id, "projects.view")
-        _installed(membership.company)
-        rows = Project.objects.filter(company=membership.company).order_by("-created_at")
-        return Response({"results": [_project_payload(row) for row in rows]})
+        params = request.query_params
+        data = list_projects(
+            membership.company,
+            request.user,
+            status=params.get("status"),
+            priority=params.get("priority"),
+            search=params.get("search"),
+            department_id=params.get("department_id"),
+        )
+        return Response(data)
 
     def post(self, request, company_id):
         membership = require_permission(request.user, company_id, "projects.manage")
-        _installed(membership.company)
-        name = (request.data.get("name") or "").strip()
-        if not name:
-            raise validation_error([{"field": "name", "code": "required", "message": "Enter a project name."}])
-        owner = None
-        owner_id = request.data.get("owner_person_id")
-        if owner_id:
-            owner = Person.objects.filter(company=membership.company, pk=owner_id).first()
-            if owner is None:
-                raise not_found("That person was not found.")
-        row = Project.objects.create(
-            company=membership.company,
-            name=name[:200],
-            description=(request.data.get("description") or "")[:5000],
-            owner_person=owner or membership.person,
-        )
-        return Response(_project_payload(row), status=201)
+        data = create_project(membership.company, request.user, request.data, request=request)
+        return Response(data, status=201)
 
 
 class ProjectDetailView(APIView):
@@ -62,76 +56,202 @@ class ProjectDetailView(APIView):
 
     def get(self, request, company_id, project_id):
         membership = require_permission(request.user, company_id, "projects.view")
-        _installed(membership.company)
-        row = Project.objects.filter(company=membership.company, pk=project_id).first()
-        if row is None:
-            raise not_found()
-        tasks = [
-            {
-                "id": str(task.id),
-                "title": task.title,
-                "status": task.status,
-                "assignee_id": str(task.assignee_id) if task.assignee_id else None,
-            }
-            for task in row.tasks.order_by("created_at")
-        ]
-        payload = _project_payload(row)
-        payload["tasks"] = tasks
-        return Response(payload)
+        data = get_project_detail(membership.company, project_id, request.user)
+        return Response(data)
 
     def patch(self, request, company_id, project_id):
         membership = require_permission(request.user, company_id, "projects.manage")
-        _installed(membership.company)
-        row = Project.objects.filter(company=membership.company, pk=project_id).first()
-        if row is None:
-            raise not_found()
-        if "name" in request.data:
-            name = (request.data.get("name") or "").strip()
-            if not name:
-                raise validation_error([{"field": "name", "code": "required", "message": "Enter a project name."}])
-            row.name = name[:200]
-        if "description" in request.data:
-            row.description = (request.data.get("description") or "")[:5000]
-        if "status" in request.data:
-            status = request.data.get("status")
-            if status not in {choice.value for choice in ProjectStatus}:
-                raise validation_error([{"field": "status", "code": "invalid", "message": "Invalid status."}])
-            row.status = status
-        row.save()
-        return Response(_project_payload(row))
+        data = update_project(membership.company, project_id, request.user, request.data, request=request)
+        return Response(data)
 
 
-class ProjectTaskListView(APIView):
+class ProjectMembersView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, company_id, project_id):
         membership = require_permission(request.user, company_id, "projects.manage")
-        _installed(membership.company)
-        project = Project.objects.filter(company=membership.company, pk=project_id).first()
-        if project is None:
-            raise not_found()
-        title = (request.data.get("title") or "").strip()
-        if not title:
-            raise validation_error([{"field": "title", "code": "required", "message": "Enter a task title."}])
-        assignee = None
-        assignee_id = request.data.get("assignee_id")
-        if assignee_id:
-            assignee = Person.objects.filter(company=membership.company, pk=assignee_id).first()
-            if assignee is None:
-                raise not_found("That person was not found.")
-        task = ProjectTask.objects.create(
-            company=membership.company,
-            project=project,
-            title=title[:255],
-            status=request.data.get("status") or TaskStatus.TODO,
-            assignee=assignee,
+        person_id = request.data.get("person_id")
+        role = request.data.get("role")
+        data = add_project_member(membership.company, project_id, person_id, role, request.user)
+        return Response(data, status=201)
+
+    def delete(self, request, company_id, project_id, member_id):
+        membership = require_permission(request.user, company_id, "projects.manage")
+        data = remove_project_member(membership.company, project_id, member_id, request.user)
+        return Response(data)
+
+
+class ProjectMilestonesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id, project_id):
+        membership = require_permission(request.user, company_id, "projects.manage")
+        data = create_milestone(membership.company, project_id, request.data, request.user)
+        return Response(data, status=201)
+
+
+class TaskListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.view")
+        params = request.query_params
+        data = list_tasks(
+            membership.company,
+            request.user,
+            project_id=params.get("project_id"),
+            assignee_id=params.get("assignee_id"),
+            status=params.get("status"),
+            priority=params.get("priority"),
+            search=params.get("search"),
+            scope=params.get("scope"),
         )
-        return Response(
-            {
-                "id": str(task.id),
-                "title": task.title,
-                "status": task.status,
-                "assignee_id": str(task.assignee_id) if task.assignee_id else None,
-            },
-            status=201,
+        return Response(data)
+
+    def post(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.task.manage")
+        data = create_task(membership.company, request.user, request.data, request=request)
+        return Response(data, status=201)
+
+
+class TaskDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id, task_id):
+        membership = require_permission(request.user, company_id, "projects.view")
+        data = get_task_detail(membership.company, task_id, request.user)
+        return Response(data)
+
+    def patch(self, request, company_id, task_id):
+        membership = require_permission(request.user, company_id, "projects.task.status")
+        data = update_task(membership.company, task_id, request.user, request.data, request=request)
+        return Response(data)
+
+
+class TaskCommentsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id, task_id):
+        membership = require_permission(request.user, company_id, "projects.task.status")
+        body = request.data.get("body")
+        mentions = request.data.get("mentions") or []
+        data = add_task_comment(membership.company, task_id, request.user, body, mentions)
+        return Response(data, status=201)
+
+
+class TimesheetListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.view")
+        params = request.query_params
+        data = list_timesheets(
+            membership.company,
+            request.user,
+            person_id=params.get("person_id"),
+            project_id=params.get("project_id"),
+            work_date=params.get("work_date"),
+            status=params.get("status"),
         )
+        return Response(data)
+
+    def post(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.timesheet.log")
+        data = log_time_entry(membership.company, request.user, request.data)
+        return Response(data, status=201)
+
+
+class TimesheetTimerView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.timesheet.log")
+        data = start_stop_timer(membership.company, request.user, request.data)
+        return Response(data)
+
+
+class TimesheetSubmitView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.timesheet.log")
+        entry_ids = request.data.get("entry_ids") or []
+        data = submit_timesheets(membership.company, request.user, entry_ids)
+        return Response(data)
+
+
+class TimesheetDecisionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id, entry_id):
+        membership = require_permission(request.user, company_id, "projects.timesheet.approve")
+        action = request.data.get("action")
+        reason = request.data.get("reason", "")
+        data = decide_timesheet(membership.company, request.user, entry_id, action, reason)
+        return Response(data)
+
+
+class ProjectsOverviewDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.view")
+        data = get_overview_dashboard(membership.company, request.user)
+        return Response(data)
+
+
+class TeamWorkloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.view")
+        data = get_team_workload(membership.company, request.user)
+        return Response(data)
+
+
+class ProjectsReportsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.reports.view")
+        data = get_reports_summary(membership.company, request.user)
+        return Response(data)
+
+
+class ProjectSettingsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.view")
+        ensure_projects_installed(membership.company)
+        st = get_or_create_settings(membership.company)
+        return Response({
+            "project_code_prefix": st.project_code_prefix,
+            "task_code_prefix": st.task_code_prefix,
+            "default_billable": st.default_billable,
+            "timesheet_requires_approval": st.timesheet_requires_approval,
+            "allow_standalone_tasks": st.allow_standalone_tasks,
+        })
+
+    def patch(self, request, company_id):
+        membership = require_permission(request.user, company_id, "projects.admin")
+        ensure_projects_installed(membership.company)
+        st = get_or_create_settings(membership.company)
+        if "project_code_prefix" in request.data:
+            st.project_code_prefix = (request.data["project_code_prefix"] or "PRJ")[:16]
+        if "task_code_prefix" in request.data:
+            st.task_code_prefix = (request.data["task_code_prefix"] or "TSK")[:16]
+        if "default_billable" in request.data:
+            st.default_billable = bool(request.data["default_billable"])
+        if "timesheet_requires_approval" in request.data:
+            st.timesheet_requires_approval = bool(request.data["timesheet_requires_approval"])
+        if "allow_standalone_tasks" in request.data:
+            st.allow_standalone_tasks = bool(request.data["allow_standalone_tasks"])
+        st.save()
+        return Response({
+            "project_code_prefix": st.project_code_prefix,
+            "task_code_prefix": st.task_code_prefix,
+            "default_billable": st.default_billable,
+            "timesheet_requires_approval": st.timesheet_requires_approval,
+            "allow_standalone_tasks": st.allow_standalone_tasks,
+        })

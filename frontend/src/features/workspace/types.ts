@@ -1,5 +1,5 @@
 export type WorkspacePayload = {
-  company: { id: string; legal_name: string; display_name: string; slug: string; status: string; timezone: string };
+  company: { id: string; legal_name: string; display_name: string; slug: string; status: string; timezone: string; suspended_at?: string | null; closed_at?: string | null; status_reason?: string | null };
   permissions: string[];
   navigation: Array<{ code: string; label: string }>;
   subscription: { status: string; plan_name: string; billing_interval: string; trial_ends_at: string | null } | null;

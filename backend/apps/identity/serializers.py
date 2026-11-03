@@ -22,6 +22,7 @@ def serialize_current_user(user) -> dict:
                 "company_id": str(membership.company_id),
                 "company_slug": membership.company.slug,
                 "company_display_name": membership.company.display_name,
+                "company_status": membership.company.status,
                 "status": membership.status,
             }
             for membership in memberships

@@ -23,7 +23,7 @@ export function UsersPage() {
   const [submittedSearch, setSubmittedSearch] = useState("");
   const [accountStatus, setAccountStatus] = useState(params.get("account_status") ?? "");
   const [emailVerified, setEmailVerified] = useState(params.get("email_verified") ?? "");
-  const [hasPlatformGrants, setHasPlatformGrants] = useState(params.get("has_platform_grants") ?? "");
+  const [hasPlatformGrants, setHasPlatformGrants] = useState(params.get("has_platform_grants") ?? "yes");
   const [page, setPage] = useState(1);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -202,7 +202,7 @@ export function UsersPage() {
       ) : null}
       {users.data && users.data.results.length > 0 ? (
         <>
-          <DataTable columns={["Email", "Name", "Account", "Verified", "Memberships", "Grants", "Created", ""]}>
+          <DataTable columns={["Email", "Name", "Account", "Verified", "Grants", "Last Login", "Created", ""]}>
             {users.data.results.map((user) => (
               <tr key={user.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" onClick={() => navigate(`/platform/users/${user.id}`)}>
                 <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
@@ -220,8 +220,15 @@ export function UsersPage() {
                   <StatusBadge status={user.is_active ? "active" : "inactive"} />
                 </td>
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{user.email_verified ? "Yes" : "No"}</td>
-                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{user.membership_count}</td>
-                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{user.platform_grant_count}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                    {user.platform_grant_count} grants
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+                  {user.last_login ? new Date(user.last_login).toLocaleString() : "Never"}
+                </td>
+
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{new Date(user.created_at).toLocaleString()}</td>
                 <td className="px-4 py-3 text-right">
                   <Link

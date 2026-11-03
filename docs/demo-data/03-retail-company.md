@@ -361,4 +361,409 @@ Unsupported / future:
 
 ---
 
-*Use this document alone to configure the retail tenant. Do not merge field option lists with the technology or manufacturing companies.*
+---
+
+## L. Installed Module Matrix & Entitlements
+
+Lotus Lane subscribes to the **Growth Plan** (`growth`) billed monthly at INR 9,999. Under this subscription tier, the company is entitled to all 4 available Pulse modules up to a 50-person directory cap.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   LOTUS LANE MODULE INSTALLATION STATE                      │
+├─────────────────────┬──────────────┬─────────────┬──────────────────────────┤
+│ Module Slug         │ Status       │ Version     │ Notes                    │
+├─────────────────────┼──────────────┼─────────────┼──────────────────────────┤
+│ hrms                │ INSTALLED    │ 2.5.0       │ Multi-store retail staff │
+│ projects            │ INSTALLED    │ 1.0.0       │ Store launches & displays│
+│ commerce            │ INSTALLED    │ 1.0.0       │ Lifestyle catalog/orders │
+│ crm                 │ NOT INSTALLED│ 1.0.0       │ Retail B2C via Commerce  │
+│ finance             │ COMING SOON  │ —           │ Store capex via Custom   │
+│ inventory           │ COMING SOON  │ —           │ Store POS via Custom     │
+│ procurement         │ COMING SOON  │ —           │ Vendors via Parties      │
+│ sales / helpdesk    │ COMING SOON  │ —           │ Store requests in HRMS   │
+└─────────────────────┴──────────────┴─────────────┴──────────────────────────┘
+```
+
+### Module Entitlement & Licensing Parameters
+- **Plan Code**: `growth`
+- **Max People Cap**: 50 active people (Current seed uses 15 employees, ~30% utilization).
+- **Installed Modules**: `hrms`, `projects`, `commerce`.
+- **Installed By**: `meera.krishnan@lotuslane.example` (Founder & CEO).
+- **Custom Entities In Use**: 5 of 20 entity quota consumed.
+
+---
+
+## M. Module Configuration & Domain Master Data
+
+### 1. Legal Entity & Tax Registrations
+- **Legal Entity ID**: `LE-RET-01`
+- **Legal Name**: Lotus Lane Retail Private Limited
+- **Registration / CIN**: `U52100MH2020PTC345678`
+- **Tax Identifier (GSTIN)**: `27AABCL9876M1Z8`
+- **Permanent Account Number (PAN)**: `AABCL9876M`
+- **Statutory Accounts & Licences**:
+  - Maharashtra Shops & Establishments Registration: `MH-MUM-SE-2020-09812`
+  - Karnataka Shops & Commercial Establishments: `KA-BLR-SE-2022-04519`
+  - Kerala Shops & Commercial Establishments: `KL-EKM-SE-2023-01824`
+  - Provident Fund (EPF) Establishment Code: `MH/BAN/0082194/000`
+  - Maharashtra Professional Tax Registration: `27981234567P`
+
+### 2. Work Locations & Retail Stores
+| Location Code | Location Name | Address | Coordinates | Geofence | HQ? |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `LOC-BOM-HQ` | Lower Parel Corporate Office | 3rd Floor, Peninsula Business Park, Mumbai 400013 | 18.9950° N, 72.8310° E | 100m | Yes |
+| `LOC-BAN-STR` | Bandra Flagship Store | 42 Linking Road, Bandra West, Mumbai 400050 | 19.0600° N, 72.8330° E | 120m | No |
+| `LOC-BLR-STR` | Indiranagar High Street Store | 100 Feet Road, HAL 2nd Stage, Bengaluru 560038 | 12.9716° N, 77.6412° E | 120m | No |
+| `LOC-COK-STR` | Kochi Boutique Store | Panampilly Nagar Main Avenue, Kochi 682036 | 9.9650° N, 76.2950° E | 120m | No |
+
+### 3. Designations & Retail Roles
+| Code | Designation Title | Grade / Track | Min CTC (LPA) | Max CTC (LPA) |
+| :--- | :--- | :--- | :--- | :--- |
+| `DES-CEO` | Founder & Chief Executive Officer | Executive (L7) | 40.0 | 65.0 |
+| `DES-OPS-HEAD` | Head of Retail Operations | Management (L6) | 22.0 | 32.0 |
+| `DES-MERCH-DIR` | Creative & Merchandising Director | Design (L6) | 20.0 | 30.0 |
+| `DES-STORE-MGR` | Store General Manager | Store Operations (L5) | 9.0 | 14.0 |
+| `DES-ASST-MGR` | Assistant Store Manager | Store Operations (L4) | 6.5 | 9.5 |
+| `DES-SR-STYLIST` | Senior Fashion & Living Stylist | Store Sales (L4) | 5.5 | 8.0 |
+| `DES-SALES-ASSOC` | Retail Sales Associate | Store Sales (L3) | 3.6 | 5.5 |
+| `DES-VM-LEAD` | Visual Merchandising Specialist | Creative (L4) | 6.0 | 9.0 |
+| `DES-STOCK-EXEC` | Store Inventory & Stock Executive | Logistics (L3) | 4.0 | 6.0 |
+| `DES-HR-HEAD` | Head of People Operations | Administration (L6) | 16.0 | 24.0 |
+| `DES-HR-ASSOC` | HR & Training Associate | Administration (L3) | 4.5 | 7.0 |
+| `DES-FIN-MGR` | Finance & Commercial Manager | Finance (L5) | 14.0 | 20.0 |
+| `DES-CASHIER` | Chief Store Cashier | Store Operations (L3) | 3.8 | 5.5 |
+| `DES-ECOM-LEAD` | E-Commerce Sales Coordinator | Digital (L4) | 6.5 | 10.0 |
+| `DES-LOG-ASSOC` | Fulfilment & Dispatch Associate | Logistics (L3) | 3.5 | 5.2 |
+
+### 4. Retail Store Shifts & Geofenced Attendance Policies
+- **Shift `SHIFT-STR-MORN`**: Store Morning Shift (09:30 – 18:30 IST). Opening checklist, morning cash float count, morning footfall greeting.
+- **Shift `SHIFT-STR-EVE`**: Store Evening Shift (12:30 – 21:30 IST). Evening peak footfall, closing reconciliation, store lockup.
+- **Shift `SHIFT-HQ-GEN`**: Corporate Office Shift (10:00 – 19:00 IST).
+- **Attendance Policy `POL-RET-GEO`**:
+  - Verification Modes: Mobile device GPS geofence punch at store boundary (120m radius).
+  - Grace Period: 20 minutes.
+  - Sunday Working / Weekly Off: Rotating 6-day roster with scheduled compensatory weekday off.
+
+### 5. Leave Policies
+| Code | Policy Name | Entitlement / Year | Accrual Method | Carry Forward | Encashable |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `LP-CASUAL` | Casual Leave (CL) | 12 days | 1.0 day/month | No (Lapses Dec 31) | No |
+| `LP-SICK` | Sick Leave (SL) | 10 days | Upfront on Jan 1 | Max 20 days | No |
+| `LP-EARNED` | Store Privilege Leave (PL) | 18 days | 1.5 days/month | Max 45 days | Yes on Exit |
+| `LP-FESTIVE-SWAP` | Festive Swap Off | 4 days | National Holiday Swap | Valid 90 days | No |
+
+### 6. Salary Structures & Retail Compensation
+- **Structure Code `SAL-STRUCT-RET-HQ`**: Corporate retail staff (Basic 50%, HRA 25%, Special 15%, Conveyance 10%, EPF 12%, PT).
+- **Structure Code `SAL-STRUCT-RET-STORE`**: Store frontline associate structure:
+  - Basic Pay: 50%
+  - House Rent Allowance (HRA): 20%
+  - Store Sales Target Incentive: 20% (tied to store monthly revenue achievement)
+  - Grooming & Uniform Allowance: 10%
+  - Deductions: EPF (12%), Professional Tax (Karnataka INR 200, Maharashtra INR 200, Kerala INR 1,250 half-yearly).
+
+### 7. Project Management Configuration
+- **Global Settings**:
+  - Task Identifier Prefix: `LL`
+  - Allow Cross-Department Collaborators: `True`
+  - Require Manager Timesheet Approval: `True`
+  - Live Start/Stop Timer Enabled: `True`
+
+---
+
+## N. HRMS Sample Data
+
+### 1. 15 Core Employments Linked 1:1 to People
+| Person Code | Employee Name | Work Location | Designation | Joining Date | Confirmation Date | Annual CTC (INR) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `EMP-R-001` | Meera Krishnan | `LOC-BOM-HQ` | `DES-CEO` | 2020-10-01 | 2020-10-01 | 48,00,000 |
+| `EMP-R-002` | Rohit Nambiar | `LOC-BOM-HQ` | `DES-OPS-HEAD` | 2021-02-15 | 2021-08-15 | 26,00,000 |
+| `EMP-R-003` | Tara Sen | `LOC-BOM-HQ` | `DES-MERCH-DIR` | 2021-04-01 | 2021-10-01 | 24,00,000 |
+| `EMP-R-004` | Vikram Singhania | `LOC-BAN-STR` | `DES-STORE-MGR` | 2021-06-01 | 2021-12-01 | 13,00,000 |
+| `EMP-R-005` | Arjun Kapoor | `LOC-BLR-STR` | `DES-STORE-MGR` | 2022-01-15 | 2022-07-15 | 12,50,000 |
+| `EMP-R-006` | Priya Nair | `LOC-COK-STR` | `DES-STORE-MGR` | 2022-08-01 | 2023-02-01 | 11,00,000 |
+| `EMP-R-007` | Natasha D'souza | `LOC-BAN-STR` | `DES-SR-STYLIST` | 2022-03-01 | 2022-09-01 | 7,20,000 |
+| `EMP-R-008` | Rahul Shetty | `LOC-BLR-STR` | `DES-SR-STYLIST` | 2022-09-15 | 2023-03-15 | 6,80,000 |
+| `EMP-R-009` | Ananya Hegde | `LOC-BOM-HQ` | `DES-HR-HEAD` | 2021-08-01 | 2022-02-01 | 18,00,000 |
+| `EMP-R-010` | Farhan Merchant | `LOC-BOM-HQ` | `DES-FIN-MGR` | 2021-11-01 | 2022-05-01 | 16,00,000 |
+| `EMP-R-011` | Shalini Menon | `LOC-COK-STR` | `DES-SALES-ASSOC` | 2023-02-01 | 2023-08-01 | 4,20,000 |
+| `EMP-R-012` | Devendra Rathore | `LOC-BAN-STR` | `DES-STOCK-EXEC` | 2023-04-10 | 2023-10-10 | 4,80,000 |
+| `EMP-R-013` | Alisha Khan | `LOC-BOM-HQ` | `DES-VM-LEAD` | 2023-06-01 | 2023-12-01 | 8,00,000 |
+| `EMP-R-014` | Joseph Kurien | `LOC-COK-STR` | `DES-CASHIER` | 2023-09-01 | 2024-03-01 | 4,00,000 |
+| `EMP-R-015` | Preeti Desai | `LOC-BLR-STR` | `DES-SALES-ASSOC` | 2024-01-15 | 2024-07-15 | 4,20,000 |
+
+### 2. Geofenced Store Attendance Logs (October 2026 Sample Day)
+| Employee | Store Location | Shift | In Time | Out Time | Geofence Status | Daily Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `EMP-R-004` (Vikram Singhania) | Bandra Flagship | Morning | 09:22:10 | 18:35:00 | Verified (Linking Rd GPS) | PRESENT |
+| `EMP-R-007` (Natasha D'souza) | Bandra Flagship | Morning | 09:28:40 | 18:30:15 | Verified (Linking Rd GPS) | PRESENT |
+| `EMP-R-005` (Arjun Kapoor) | Indiranagar | Morning | 09:18:00 | 18:40:00 | Verified (100ft Rd GPS) | PRESENT |
+| `EMP-R-008` (Rahul Shetty) | Indiranagar | Evening | 12:25:10 | 21:35:20 | Verified (100ft Rd GPS) | PRESENT |
+| `EMP-R-006` (Priya Nair) | Kochi Boutique | Morning | 09:20:00 | 18:32:00 | Verified (Panampilly GPS) | PRESENT |
+| `EMP-R-011` (Shalini Menon) | Kochi Boutique | Evening | 12:28:00 | 21:30:00 | Verified (Panampilly GPS) | PRESENT |
+
+### 3. Leave Requests & Balances
+- **Request `LR-RET-001`**:
+  - Employee: `EMP-R-011` (Shalini Menon) | Policy: `LP-CASUAL` (1 day: 2026-10-19)
+  - Reason: "Family temple function in Thrissur"
+  - Approver: `EMP-R-006` (Priya Nair) | Status: `APPROVED`
+- **Request `LR-RET-002`**:
+  - Employee: `EMP-R-007` (Natasha D'souza) | Policy: `LP-EARNED` (3 days: 2026-11-12 to 2026-11-14)
+  - Reason: "Post-Diwali personal trip"
+  - Approver: `EMP-R-004` (Vikram Singhania) | Status: `PENDING`
+
+### 4. October 2026 Store Payroll Execution & Payslips
+- **Payroll Period**: `2026-10-01` to `2026-10-31`
+- **Payroll Run Code**: `PR-RET-2026-10`
+- **Execution Status**: `COMPLETED` (Approved by Meera Krishnan, Processed by Ananya Hegde)
+- **Total Gross Payroll**: INR 17,39,166
+- **Total Net Disbursed**: INR 14,92,400
+- **Total EPF Remittance**: INR 1,48,200
+- **Sample Payslip (`PS-RET-2026-10-007` — Natasha D'souza, Senior Stylist)**:
+  - Basic Pay: INR 30,000
+  - HRA: INR 12,000
+  - Store Sales Target Incentive: INR 12,000
+  - Grooming & Uniform Allowance: INR 6,000
+  - Gross Earnings: INR 60,000
+  - Deductions: EPF (INR 1,800) + PT (INR 200) + TDS (INR 2,200) = INR 4,200
+  - Net Pay Disbursed: **INR 55,800**
+
+---
+
+## O. Projects & Work Management Sample Data
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      LOTUS LANE RETAIL WORK REPO                            │
+├────────────┬─────────────────────────────┬───────────┬─────────────┬────────┤
+│ Project    │ Name                        │ Priority  │ Budget      │ Owner  │
+├────────────┼─────────────────────────────┼───────────┼─────────────┼────────┤
+│ PRJ-RET-01 │ Indiranagar Store Launch    │ URGENT    │ ₹45,00,000  │ EMP-005│
+│ PRJ-RET-02 │ Festive Winter 2026 Merch   │ HIGH      │ ₹28,00,000  │ EMP-003│
+│ PRJ-RET-03 │ Bandra Flagship Remodel     │ MEDIUM    │ ₹18,00,000  │ EMP-004│
+└────────────┴─────────────────────────────┴───────────┴─────────────┴────────┘
+```
+
+### 1. Project `PRJ-RET-01`: "Indiranagar Store Launch & Visual Merchandising"
+- **Code**: `IND` | **Status**: `COMPLETED` | **Is Billable**: `False`
+- **Owning Organization Unit**: `OU-RET-BLR` (Bengaluru Store Team)
+- **Project Manager**: `EMP-R-005` (Arjun Kapoor)
+- **Dates**: `2026-01-10` to `2026-06-30` | **Progress**: 100%
+- **Milestones**:
+  - `M1`: Store Fitout & Lighting Architecture Signoff (Achieved: 2026-03-15)
+  - `M2`: POS Hardware & Inventory Stocking (Achieved: 2026-05-20)
+  - `M3`: VIP Launch Gala & Press Preview (Achieved: 2026-06-25)
+
+### 2. Project `PRJ-RET-02`: "Festive Winter Collection 2026 Merchandising"
+- **Code**: `FW26` | **Status**: `ACTIVE` | **Is Billable**: `False`
+- **Owning Organization Unit**: `OU-RET-HQ`
+- **Project Manager**: `EMP-R-003` (Tara Sen) | **Progress**: 78%
+- **Work Tasks**:
+  - `TSK-RET-201` — "Coordinate artisan handloom batch shipment from Maheshwar cluster"
+    - Assignee: `EMP-R-003` (Tara Sen) | Status: `COMPLETED` | Est: 25h | Act: 22h
+  - `TSK-RET-202` — "Design and produce festive window display props for Bandra & Indiranagar"
+    - Assignee: `EMP-R-013` (Alisha Khan) | Status: `IN_PROGRESS` | Priority: `HIGH` | Est: 35h | Act: 20h
+  - `TSK-RET-203` — "Create Instagram Lookbook & WhatsApp customer campaign assets"
+    - Assignee: `EMP-R-013` (Alisha Khan) | Status: `TODO` | Priority: `MEDIUM` | Est: 16h | Act: 0h
+
+### 3. Retail Project Timesheets
+- **Entry `TE-RET-001`**:
+  - Worker: `EMP-R-013` (Alisha Khan) | Task: `TSK-RET-202` (Window Displays)
+  - Work Date: `2026-10-20` | Duration: 420 minutes (7.0h)
+  - Description: "Supervised installation of handmade brass lotus lamps and silk hangings in Bandra store window."
+  - Status: `APPROVED` by Tara Sen.
+
+---
+
+## P. Other Module Data (Commerce)
+
+Lotus Lane retails artisanal fashion, home decor, and lifestyle goods through `apps.commerce`, directly linked to `parties.Party`:
+
+### 1. Product Catalog (`apps.commerce.models.Product`)
+| SKU | Product Name | Category | Retail Price (INR) | Price Minor | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `LS-001` | Handcrafted Pure Linen Shirt (Indigo) | Apparel | 4,500.00 | 450000 | `ACTIVE` |
+| `SS-002` | Mulberry Silk Handprinted Floral Scarf | Accessories | 2,800.00 | 280000 | `ACTIVE` |
+| `BP-003` | Hand-Hammered Antique Brass Planter | Living | 3,200.00 | 320000 | `ACTIVE` |
+| `SC-004` | Organic Wild Jasmine Soy Wax Candle | Living | 1,400.00 | 140000 | `ACTIVE` |
+| `CP-005` | Studio Pottery Teapot & Cup Set (Terracotta) | Dining | 3,800.00 | 380000 | `ACTIVE` |
+| `CT-006` | Handloom Woven Ikat Cotton Throw | Living | 2,400.00 | 240000 | `ACTIVE` |
+
+### 2. Retail Customer Orders (`apps.commerce.models.Order` & `OrderLine`)
+- **Order `ORD-RET-2026-001`**:
+  - Customer Party: `Arundhati Roychowdhury` (Individual B2C Client)
+  - Status: `PLACED` | Currency: `INR`
+  - Order Lines:
+    - 2x `LS-001` (Pure Linen Shirt @ INR 4,500 = INR 9,000)
+    - 1x `SS-002` (Silk Scarf @ INR 2,800 = INR 2,800)
+  - Total: **INR 11,800** (Minor: `1180000`)
+- **Order `ORD-RET-2026-002`**:
+  - Customer Party: `The Taj Mahal Palace Boutique` (Hospitality Client)
+  - Status: `PLACED` | Currency: `INR`
+  - Order Lines:
+    - 10x `BP-003` (Brass Planter @ INR 3,200 = INR 32,000)
+    - 15x `SC-004` (Soy Candle @ INR 1,400 = INR 21,000)
+  - Total: **INR 53,000** (Minor: `5300000`)
+- **Order `ORD-RET-2026-003`**:
+  - Customer Party: `Kabir Mehta` (Individual Client)
+  - Status: `DRAFT` | Currency: `INR`
+  - Order Lines: 1x `CP-005` (Pottery Set @ INR 3,800) | Total: **INR 3,800** (Minor: `380000`)
+
+---
+
+## Q. Cross-Module Relationships & Entity Linkages
+
+```mermaid
+erDiagram
+    TENANTS_COMPANY ||--o{ ORGANIZATION_DEPARTMENT : contains
+    TENANTS_COMPANY ||--o{ ORGANIZATION_PERSON : directory
+    TENANTS_COMPANY ||--o{ HRMS_EMPLOYMENT : contracts
+    TENANTS_COMPANY ||--o{ PROJECTS_PROJECT : executes
+    TENANTS_COMPANY ||--o{ COMMERCE_PRODUCT : catalogs
+    TENANTS_COMPANY ||--o{ COMMERCE_ORDER : sells
+
+    ORGANIZATION_PERSON ||--|| HRMS_EMPLOYMENT : "1:1 Link"
+    ORGANIZATION_PERSON ||--o{ PROJECTS_PROJECT_MEMBER : participates
+    COMMERCE_ORDER ||--o{ COMMERCE_ORDER_LINE : contains
+    COMMERCE_ORDER }|--|| PARTIES_PARTY : "customer"
+    COMMERCE_ORDER_LINE }|--|| COMMERCE_PRODUCT : "item"
+```
+
+### Traceability Mapping Table
+| From Entity | Field | Target Entity | Functional Linkage |
+| :--- | :--- | :--- | :--- |
+| `organization.Person` | 1:1 ID | `hrms.Employment.person` | Connects store stylists and managers to HR payroll and attendance records. |
+| `commerce.Order` | `party` | `parties.Party` | External master record for retail shoppers and corporate gift clients. |
+| `commerce.OrderLine` | `product` | `commerce.Product` | SKU pricing and item association for retail receipts. |
+| `projects.Project` | `owner_person` | `organization.Person` | Merchandising director or store manager running seasonal rollout. |
+| `custom_entity.retail-stores` | `org-unit` | `organization.Department` | Bridges retail store custom entity with organizational hierarchy. |
+
+---
+
+## R. Role-Based End-to-End Scenarios & Persona Walkthroughs
+
+### Persona 1: Meera Krishnan (Founder & CEO)
+- **Login**: `meera.krishnan@lotuslane.example` | **Role**: Company Owner
+- **Daily Walkthrough**:
+  1. Opens **Workspace Overview**: Inspects total retail headcount (15 employees), store attendance (100% verified on shift), and gross payroll run.
+  2. Opens **Commerce Module**: Reviews recent orders (`ORD-RET-2026-002` for Taj Palace, INR 53,000); checks active SKU pricing.
+  3. Authorizes October payroll run `PR-RET-2026-10` (INR 14.92L net).
+
+### Persona 2: Rohit Nambiar (Head of Retail Operations)
+- **Login**: `rohit.nambiar@lotuslane.example` | **Role**: Retail Operations Lead (`OU-RET-OPS`)
+- **Daily Walkthrough**:
+  1. Verifies Store Openings: Confirms Bandra, Indiranagar, and Kochi store managers completed morning geofenced check-in by 09:30 AM.
+  2. Reviews `PRJ-RET-02 (Festive Merchandising)`: Checks window display installation timeline with Alisha Khan.
+  3. Approves store supply requisition ticket.
+
+### Persona 3: Ananya Hegde (Head of People Operations)
+- **Login**: `ananya.hegde@lotuslane.example` | **Role**: HR Lead
+- **Daily Walkthrough**:
+  1. Reviews Geofence Punch Logs: Verifies all store staff punched in within 120m of store locations.
+  2. Approves leave request `LR-RET-001` for Shalini Menon (Kochi Store).
+  3. Finalizes store sales target incentive calculations for frontline staff.
+
+### Persona 4: Vikram Singhania (Bandra Store Manager)
+- **Login**: `vikram.singhania@lotuslane.example` | **Role**: Store General Manager (`OU-RET-BAN`)
+- **Daily Walkthrough**:
+  1. Arrives at Linking Road store at 09:22 AM; performs mobile GPS check-in (verified).
+  2. Checks store staff presence (Natasha D'souza and Devendra Rathore present).
+  3. Superintends store visual display installation; approves timesheet entry.
+
+---
+
+## S. Cross-Module Workflows
+
+### Workflow 1: New Store Opening to Retail Launch
+```mermaid
+sequenceDiagram
+    autonumber
+    actor CEO as Meera Krishnan (CEO)
+    actor Ops as Rohit Nambiar (Ops Head)
+    actor Merch as Tara Sen (Merch Dir)
+    participant ORG as Organization
+    participant PRJ as Projects Module
+    participant COM as Commerce Module
+
+    CEO->>ORG: Creates New Org Unit (Indiranagar Store)
+    Ops->>PRJ: Initiates PRJ-RET-01 (Store Launch Project)
+    Merch->>COM: Catalogs Launch SKUs (Linen Shirts, Pottery)
+    Ops->>PRJ: Tracks Fitout & VM Milestones
+    Merch->>PRJ: Logs Timesheet on Artisan Coordination
+    Ops->>COM: Processes First Customer Order
+```
+
+---
+
+## T. Seed Execution Order & Dependencies
+
+```
+1. Platform Catalogs (Permissions, Modules, Standard Role Templates)
+   ↓
+2. Billing Plan & Price Setup (Ensure 'growth' plan with included_module_slugs)
+   ↓
+3. Tenant Company Creation (Lotus Lane, slug='lotus-lane', legal entity, billing profile)
+   ↓
+4. Org Hierarchy Setup (Corporate HQ, Retail Operations, Store Units)
+   ↓
+5. People Directory & User Identity (15 Person records, Memberships, Roles)
+   ↓
+6. External Parties Master (Retail Shoppers, Artisan Weavers, Landlords)
+   ↓
+7. Custom Fields & Custom Entities (Retail Stores, Store Equipment, Lease Contracts)
+   ↓
+8. Module Installation (Call install_module for 'hrms', 'projects', 'commerce')
+   ↓
+9. HRMS Domain Master (LegalEntity, WorkLocations, Designations, Roster Shifts, Policies)
+   ↓
+10. HRMS Core Records (15 Employments, Geofenced Attendance Sessions, Payroll Run)
+   ↓
+11. Projects Domain Records (ProjectSettings, Projects, Members, Milestones, Tasks, Timesheets)
+   ↓
+12. Commerce Domain Records (Products, Orders, Order Lines linked to Parties)
+   ↓
+13. Post-Seed Validation Assertions & Audit Trail
+```
+
+---
+
+## U. Validation Queries & Known Limitations
+
+### 1. Database Verification Queries (PostgreSQL / Django ORM)
+```python
+from apps.tenants.models import Company
+from apps.organization.models import Department, Person
+from apps.modules_registry.models import CompanyModuleInstallation
+from apps.hrms.models import Employment, AttendanceSession, LeaveRequest, PayrollRun
+from apps.projects.models import Project, ProjectTask, ProjectTimeEntry
+from apps.commerce.models import Product, Order
+
+co = Company.objects.get(slug="lotus-lane")
+
+# Assert Core Counts
+assert Department.objects.filter(company=co).count() == 6
+assert Person.objects.filter(company=co).count() == 15
+assert CompanyModuleInstallation.objects.filter(company=co, status="installed").count() == 3
+
+# Assert HRMS Counts
+assert Employment.objects.filter(company=co).count() == 15
+assert AttendanceSession.objects.filter(company=co).count() >= 15
+assert LeaveRequest.objects.filter(company=co).count() >= 2
+assert PayrollRun.objects.filter(company=co).count() >= 1
+
+# Assert Projects Counts
+assert Project.objects.filter(company=co).count() == 3
+assert ProjectTask.objects.filter(company=co).count() >= 3
+
+# Assert Commerce Counts
+assert Product.objects.filter(company=co).count() == 6
+assert Order.objects.filter(company=co).count() == 3
+print("LOTUS LANE ALL SEED ASSERTIONS PASSED!")
+```
+
+### 2. Known Platform Limitations & Architectural Boundaries
+1. **POS Hardware Integration**: Pulse provides the master product catalog, order line records, and store employee attendance; direct POS thermal printer / barcode scanner integrations are managed via webhooks or external point-of-sale middleware.
+2. **Multi-Store Floating Staff**: Frontline sales associates are assigned to a primary home store unit (`Person.department`); cross-store temporary coverage is recorded via shifts or project assignment.
+
+---
+
+*Document version: 2.0 (Comprehensive Multi-Module Platform Integration — Aligned with Pulse Platform Matrix).*

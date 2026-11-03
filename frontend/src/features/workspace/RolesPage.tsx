@@ -19,7 +19,12 @@ type Role = {
   updated_at: string;
 };
 type Catalog = { code: string; description: string; module_slug: string | null };
-type RoleList = { results: Role[]; catalog: Catalog[]; caller_holds_owner_role: boolean };
+type RoleList = {
+  results: Role[];
+  catalog: Catalog[];
+  installed_modules?: string[];
+  caller_holds_owner_role: boolean;
+};
 type RoleMember = { membership_id: string; email: string; name: string; status: string };
 type RoleMembersPayload = {
   results: RoleMember[];
@@ -93,6 +98,59 @@ const GROUPS: Array<{ title: string; detail: string; items: Array<[string, strin
     ],
   },
   {
+    title: "Parties",
+    detail: "Customers, suppliers, and external contacts.",
+    items: [
+      ["parties.view", "View external parties"],
+      ["parties.manage", "Create and update external parties"],
+    ],
+  },
+  {
+    title: "Custom Entities",
+    detail: "Custom data tables and entity records.",
+    items: [
+      ["custom_entities.view", "List and view records"],
+      ["custom_entities.create", "Create records"],
+      ["custom_entities.update", "Update records"],
+      ["custom_entities.delete", "Archive records"],
+      ["custom_entities.manage", "Manage schemas and fields"],
+    ],
+  },
+  {
+    title: "CRM",
+    detail: "Leads, customer pipelines, and account records.",
+    items: [
+      ["crm.view", "View CRM leads and accounts"],
+      ["crm.manage", "Create and convert CRM leads and accounts"],
+    ],
+  },
+  {
+    title: "Projects",
+    detail: "Projects, milestones, and task workflows.",
+    items: [
+      ["projects.view", "View projects and tasks"],
+      ["projects.manage", "Create and update projects"],
+      ["projects.task.manage", "Create and assign tasks"],
+      ["projects.task.status", "Update status and comments"],
+      ["projects.timesheet.log", "Log timesheet hours"],
+      ["projects.timesheet.approve", "Review and approve timesheets"],
+      ["projects.reports.view", "View project reports"],
+      ["projects.admin", "Manage project settings"],
+    ],
+  },
+  {
+    title: "HRMS – Workforce",
+    detail: "Employee directory, work locations, reporting lines, and HR setup.",
+    items: [
+      ["hrms.employee.view", "View employee records"],
+      ["hrms.employee.manage", "Create and update employment records"],
+      ["hrms.location.manage", "Manage work locations"],
+      ["hrms.reporting.manage", "Manage reporting relationships"],
+      ["hrms.activation.view", "View HRMS setup readiness"],
+      ["hrms.activation.manage", "Configure and activate HRMS features"],
+    ],
+  },
+  {
     title: "Leave",
     detail: "Leave requests when HRMS is available.",
     items: [
@@ -101,9 +159,91 @@ const GROUPS: Array<{ title: string; detail: string; items: Array<[string, strin
       ["hrms.leave.decide", "Decide"],
     ],
   },
+  {
+    title: "HRMS – Attendance",
+    detail: "Attendance check-in, tracking, schedules, and corrections.",
+    items: [
+      ["hrms.attendance.check_in", "Record check-in"],
+      ["hrms.attendance.check_out", "Record check-out"],
+      ["hrms.attendance.view", "View attendance records"],
+      ["hrms.attendance.manage", "Manage company attendance schedules"],
+      ["hrms.attendance.correction.approve", "Approve attendance corrections"],
+      ["hrms.attendance.evidence.view", "View verification evidence"],
+    ],
+  },
+  {
+    title: "HRMS – Compensation & Payroll",
+    detail: "Salaries, compensation, payroll runs, and payslips.",
+    items: [
+      ["hrms.compensation.own.view", "View own compensation"],
+      ["hrms.compensation.view", "View authorized compensation"],
+      ["hrms.compensation.manage", "Manage employee compensation"],
+      ["hrms.payroll.view", "View payroll data"],
+      ["hrms.payroll.calculate", "Calculate payroll runs"],
+      ["hrms.payroll.approve", "Approve submitted payroll runs"],
+      ["hrms.payroll.finalize", "Finalize approved payroll runs"],
+      ["hrms.payroll.reverse", "Reverse finalized payroll runs"],
+      ["hrms.payroll.payment_status", "Record payment status"],
+      ["hrms.payroll.payslip.own", "View own payslips"],
+      ["hrms.payroll.payslip.view", "View authorized payslips"],
+    ],
+  },
+  {
+    title: "HRMS – Documents",
+    detail: "Employee records and sensitive identity documents.",
+    items: [
+      ["hrms.documents.view", "View employee documents"],
+      ["hrms.documents.manage", "Manage employee documents"],
+      ["hrms.documents.sensitive.view", "View sensitive identity documents"],
+    ],
+  },
+  {
+    title: "Commerce – Products",
+    detail: "Product catalog, categories, pricing, and inventory.",
+    items: [
+      ["commerce.view.products", "View product catalog"],
+      ["commerce.create.products", "Create products and categories"],
+      ["commerce.update.products", "Update products and stock"],
+      ["commerce.archive.products", "Archive and delete products"],
+      ["commerce.manage.categories", "Manage product categories"],
+      ["commerce.manage.pricing", "Manage price lists and custom pricing"],
+    ],
+  },
+  {
+    title: "Commerce – Orders & Operations",
+    detail: "Sales orders, fulfillment, customer management, and operations.",
+    items: [
+      ["commerce.view", "View commerce products and orders"],
+      ["commerce.manage", "Create commerce products and orders"],
+      ["commerce.view.dashboard", "View overview dashboard and analytics"],
+      ["commerce.view.orders", "View sales orders"],
+      ["commerce.create.orders", "Create sales orders"],
+      ["commerce.update.orders", "Edit draft orders"],
+      ["commerce.confirm.orders", "Confirm and fulfill orders"],
+      ["commerce.cancel.orders", "Cancel orders and restock items"],
+      ["commerce.manage.customers", "Manage commerce customers"],
+      ["commerce.manage.vendors", "Manage vendors and suppliers"],
+      ["commerce.manage.discounts", "Create and manage discounts"],
+      ["commerce.manage.returns", "Manage returns and refund approvals"],
+      ["commerce.view.reports", "View sales reports"],
+      ["commerce.manage.settings", "Configure commerce settings"],
+    ],
+  },
 ];
 
-const SENSITIVE = new Set(["membership.remove", "people.deactivate", "audit.view", "billing.manage", "roles.manage"]);
+const SENSITIVE = new Set([
+  "membership.remove",
+  "people.deactivate",
+  "audit.view",
+  "billing.manage",
+  "roles.manage",
+  "hrms.compensation.view",
+  "hrms.compensation.manage",
+  "hrms.payroll.finalize",
+  "hrms.payroll.reverse",
+  "hrms.documents.sensitive.view",
+  "hrms.attendance.evidence.view",
+]);
 
 function errorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return "The request failed.";
@@ -130,8 +270,10 @@ export function RolesPage() {
   const [formError, setFormError] = useState("");
 
   const catalog = useMemo(() => new Map((roles.data?.catalog ?? []).map((item) => [item.code, item])), [roles.data]);
-  const known = new Set(GROUPS.flatMap((group) => group.items.map(([code]) => code)));
-  const extras = (roles.data?.catalog ?? []).filter((item) => !known.has(item.code));
+  const known = useMemo(() => new Set(GROUPS.flatMap((group) => group.items.map(([code]) => code))), []);
+  const extras = useMemo(() => {
+    return (roles.data?.catalog ?? []).filter((item) => !known.has(item.code));
+  }, [roles.data, known]);
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ["roles", companyId] });
@@ -213,12 +355,12 @@ export function RolesPage() {
           </label>
         </section>
         <section className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Permissions</div>
+          <div className="border-b border-slate-100 dark:border-slate-800 px-4 py-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Permissions</div>
           {GROUPS.map((group) => {
             const items = group.items.filter(([code]) => catalog.has(code));
             if (items.length === 0) return null;
             return (
-              <div key={group.title} className="grid gap-3 border-b border-slate-100 px-4 py-3 md:grid-cols-[16rem_1fr]">
+              <div key={group.title} className="grid gap-3 border-b border-slate-100 dark:border-slate-800 px-4 py-3 md:grid-cols-[16rem_1fr] last:border-b-0">
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{group.title}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{group.detail}</p>
@@ -228,7 +370,7 @@ export function RolesPage() {
                     <label key={code} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300" title={catalog.get(code)?.description}>
                       <input type="checkbox" checked={selected.includes(code)} onChange={() => toggle(code)} disabled={readOnly} />
                       {label}
-                      {SENSITIVE.has(code) ? <span className="text-amber-600" title="Sensitive">!</span> : null}
+                      {SENSITIVE.has(code) ? <span className="text-amber-600 font-bold" title="Sensitive">!</span> : null}
                     </label>
                   ))}
                 </div>
