@@ -4,6 +4,10 @@ export type CurrentUser = {
   first_name: string;
   last_name: string;
   email_verified: boolean;
+  is_super_admin?: boolean;
+  is_platform_operator?: boolean;
+  operator_status?: string | null;
+  platform_role?: { id: string; name: string; slug: string } | null;
   memberships: Array<{
     company_id: string;
     company_slug: string;
@@ -200,17 +204,45 @@ export type PlatformCompanyDashboard = {
   } | null;
 };
 
+export type PlatformRoleSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  assigned_operators_count?: number;
+  permission_codes?: string[];
+  permissions?: Array<{ code: string; description: string }>;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: { id: string; email: string; name: string } | null;
+  assigned_operators?: Array<{
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    status: string;
+    is_active: boolean;
+    last_login: string | null;
+  }>;
+};
+
 export type UserRow = {
   id: string;
   email: string;
   first_name: string;
   last_name: string;
   is_active: boolean;
+  is_super_admin?: boolean;
+  role?: { id: string; name: string; slug: string } | null;
+  status?: string;
+  status_reason?: string;
+  mfa_status?: string;
   email_verified: boolean;
   created_at: string;
   last_login?: string | null;
   membership_count: number;
   platform_grant_count: number;
+  is_invitation?: boolean;
 };
 
 export type UserList = {
@@ -229,6 +261,9 @@ export type PlatformPermission = {
 
 export type PlatformUserDetail = UserRow & {
   permission_codes: string[];
+  effective_permissions?: string[];
+  role_permissions?: string[];
+  custom_permissions?: string[];
   memberships: Array<{
     company_id: string;
     company_display_name: string;

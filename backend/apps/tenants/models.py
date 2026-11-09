@@ -38,6 +38,7 @@ class Company(models.Model):
         related_name="companies_created",
         db_column="created_by_user_id",
     )
+
     suspended_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

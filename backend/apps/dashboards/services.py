@@ -155,12 +155,15 @@ def widget_data(membership, code: str) -> dict:
 
         return subscription_summary(company) or {}
     if code == "audit.recent":
-        from apps.audit.models import AuditLog
+        from apps.audit.models import AuditLog, AuditScope, PLATFORM_ACTIONS
 
         return {
             "results": [
                 {"action": row.action, "created_at": row.created_at.isoformat()}
-                for row in AuditLog.objects.filter(company=company).order_by("-created_at")[:5]
+                for row in AuditLog.objects.filter(company=company, scope=AuditScope.COMPANY)
+                .exclude(action__startswith="platform.")
+                .exclude(action__in=PLATFORM_ACTIONS)
+                .order_by("-created_at")[:5]
             ]
         }
     if code == "hrms.leave.pending":

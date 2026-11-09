@@ -69,6 +69,7 @@ export function OverviewPage() {
               to="/platform/companies?status=active"
               accent="emerald"
             />
+          
             <MetricCard
               label="Committed MRR"
               value={formatInr(data.billing.committed_mrr_minor)}

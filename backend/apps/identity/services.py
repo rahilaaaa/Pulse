@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.cache import cache
+from django.core.exceptions import ObjectDoesNotExist
 from django.conf import settings
 
 from common.api.errors import rate_limited
@@ -46,9 +47,28 @@ def authenticate_credentials(*, email: str, password: str):
     password_matches = user.check_password(password)
     if not password_matches or not user.is_active:
         return None
+
+    # Suspended or deactivated operators cannot sign in
+    profile = getattr(user, "platform_profile", None)
+    if profile is None:
+        try:
+            profile = user.platform_profile
+        except (ObjectDoesNotExist, AttributeError):
+            profile = None
+    if profile is not None and profile.status in ("suspended", "deactivated"):
+        return None
+
     return user
 
 
 def complete_login(request, user) -> None:
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+    profile = getattr(user, "platform_profile", None)
+    if profile is None:
+        try:
+            profile = user.platform_profile
+        except (ObjectDoesNotExist, AttributeError):
+            profile = None
+    if profile is not None:
+        request.session["session_version"] = profile.session_version
     request.session.cycle_key()

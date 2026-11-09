@@ -18,6 +18,7 @@ import { PermissionsCatalogPage } from "../features/platform/PermissionsCatalogP
 import { PlatformHealthPage } from "../features/platform/PlatformHealthPage";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
 import { PlatformSettingsPage } from "../features/platform/PlatformSettingsPage";
+import { RolesPage as PlatformRolesPage } from "../features/platform/RolesPage";
 import { SubscriptionsPage } from "../features/platform/SubscriptionsPage";
 import { UserDetailPage } from "../features/platform/UserDetailPage";
 import { UsersPage } from "../features/platform/UsersPage";
@@ -89,6 +90,7 @@ export function AppRoutes() {
           <Route path="onboarding" element={<OnboardingMonitorPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
+          <Route path="roles" element={<PlatformRolesPage />} />
           <Route path="permissions" element={<PermissionsCatalogPage />} />
           <Route path="billing" element={<SubscriptionsPage />} />
           <Route path="billing/plans" element={<BillingPlansPage />} />

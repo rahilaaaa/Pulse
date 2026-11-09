@@ -9,6 +9,8 @@ import { LoadingState } from "../../shared/ui/States";
 import { initials, personName, relativeTime } from "./format";
 import { NavIcon, SHELL_LINKS } from "./navigation";
 import type { MePayload, PersonRow, WorkspacePayload } from "./types";
+// import { useInactivityLogout } from "../../shared/hooks/useInactivityLogout";
+
 
 const TITLES: Record<string, string> = {
   "/app": "Workspace",
@@ -63,6 +65,10 @@ export function WorkspaceLayout() {
       navigate("/welcome", { replace: true });
     },
   });
+
+  // useInactivityLogout(()=>{
+  //   logout.mutate()
+  // })
 
   const companyId = workspace.data?.company.id ?? "";
   const isCompanyActive = workspace.data?.company.status === "active";

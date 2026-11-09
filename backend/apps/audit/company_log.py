@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from apps.audit.models import AuditLog
+from apps.audit.models import AuditLog, AuditScope, PLATFORM_ACTIONS
 
 ACTION_LABELS = {
     "company.created": "Workspace created",
@@ -127,13 +127,21 @@ def _target(row, names) -> str:
     return f"{label} · {detail}" if detail else label
 
 
-def _row(row, names) -> dict:
-    mechanism = "Web app" if row.actor_id else "System"
+def _row(row, names, company_member_ids: set) -> dict:
+    is_company_member = bool(row.actor_id and row.actor_id in company_member_ids)
+    if is_company_member:
+        actor_id = str(row.actor_id)
+        actor_name = _actor_name(row.actor)
+        mechanism = "Web app"
+    else:
+        actor_id = "system"
+        actor_name = "System"
+        mechanism = "System"
     return {
         "id": str(row.id),
         "created_at": row.created_at.isoformat(),
-        "actor_id": str(row.actor_id) if row.actor_id else "system",
-        "actor_name": _actor_name(row.actor),
+        "actor_id": actor_id,
+        "actor_name": actor_name,
         "action": row.action,
         "action_label": action_label(row.action),
         "mechanism": mechanism,
@@ -143,8 +151,15 @@ def _row(row, names) -> dict:
 
 
 def company_audit(company_id, params) -> dict:
+    from apps.tenants.models import CompanyMembership
+
     days = (params.get("days") or "90").strip()
-    queryset = AuditLog.objects.filter(company_id=company_id).select_related("actor")
+    queryset = (
+        AuditLog.objects.filter(company_id=company_id, scope=AuditScope.COMPANY)
+        .exclude(action__startswith="platform.")
+        .exclude(action__in=PLATFORM_ACTIONS)
+        .select_related("actor")
+    )
     if days != "all":
         try:
             window = int(days)
@@ -154,8 +169,11 @@ def company_audit(company_id, params) -> dict:
             window = 90
         queryset = queryset.filter(created_at__gte=timezone.now() - timedelta(days=window))
     rows = list(queryset.order_by("-created_at")[:_LIMIT])
+    company_member_ids = set(
+        CompanyMembership.objects.filter(company_id=company_id).values_list("user_id", flat=True)
+    )
     names = _names_for(rows)
-    presented = [_row(row, names) for row in rows]
+    presented = [_row(row, names, company_member_ids) for row in rows]
     actors = []
     seen = set()
     for item in presented:

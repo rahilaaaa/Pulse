@@ -126,6 +126,13 @@ export function OverviewPage() {
               Company settings
             </Link>
           ) : null}
+
+          {/* {data.company.updated_at ? (<p>caompany uupated {formatDateTime(data.company.updated_at)}</p>):null} */}
+          
+          {/* {me.data?.last_login && (
+            <p>{formatDateTime(me.data.last_login)}</p>)
+            } */}
+          
         </div>
       </header>
 

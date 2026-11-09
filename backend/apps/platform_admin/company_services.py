@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, time, timezone as datetime_timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from datetime import datetime 
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
@@ -9,7 +10,7 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.dateparse import parse_date
 
-from apps.audit.models import AuditLog
+from apps.audit.models import AuditLog, AuditScope
 from apps.authorization.company import bootstrap_company_access
 from apps.authorization.models import CompanyRole, MembershipRoleAssignment
 from apps.billing.access import current_subscription
@@ -459,6 +460,7 @@ def create_platform_company(*, actor: User, payload: dict, request) -> dict:
         AuditLog.objects.create(
             company=company,
             actor=actor,
+            scope=AuditScope.PLATFORM,
             action="company.created",
             object_type="company",
             object_id=company.id,
@@ -562,7 +564,8 @@ def update_company_metadata(*, actor: User, company_id, payload: dict, request) 
             AuditLog.objects.create(
                 company=company,
                 actor=actor,
-                action="company.updated",
+                scope=AuditScope.PLATFORM,
+                action="company.metadata_updated",
                 object_type="company",
                 object_id=company.id,
                 before=before,
@@ -593,6 +596,7 @@ def activate_company(*, actor: User, company_id, request) -> dict:
         AuditLog.objects.create(
             company=company,
             actor=actor,
+            scope=AuditScope.PLATFORM,
             action="company.activated",
             object_type="company",
             object_id=company.id,
@@ -639,10 +643,11 @@ def suspend_company(*, actor: User, company_id, payload: dict, request) -> dict:
             company.custom_data = {}
         company.custom_data["suspension_reason"] = reason
         company.save(update_fields=["status", "suspended_at", "custom_data", "updated_at"])
-
+        
         AuditLog.objects.create(
             company=company,
             actor=actor,
+            scope=AuditScope.PLATFORM,
             action="company.suspended",
             object_type="company",
             object_id=company.id,
@@ -651,7 +656,7 @@ def suspend_company(*, actor: User, company_id, payload: dict, request) -> dict:
             ip_address=_request_ip(request),
             request_id=_request_id(request),
         )
-
+    
     return get_company_detail(company_id=company.id)
 
 
@@ -674,6 +679,7 @@ def reactivate_company(*, actor: User, company_id, request) -> dict:
         AuditLog.objects.create(
             company=company,
             actor=actor,
+            scope=AuditScope.PLATFORM,
             action="company.reactivated",
             object_type="company",
             object_id=company.id,
@@ -709,6 +715,7 @@ def close_company(*, actor: User, company_id, payload: dict, request) -> dict:
         AuditLog.objects.create(
             company=company,
             actor=actor,
+            scope=AuditScope.PLATFORM,
             action="company.closed",
             object_type="company",
             object_id=company.id,
@@ -739,6 +746,7 @@ def list_company_audit_logs(*, company_id, query_params) -> dict:
     page["results"] = [
         {
             "id": str(row.id),
+            "scope": row.scope,
             "company_id": str(row.company_id),
             "actor_user_id": str(row.actor_id) if row.actor_id else None,
             "actor_email": row.actor.email if row.actor else "System",

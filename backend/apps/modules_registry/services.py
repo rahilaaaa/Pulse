@@ -3,7 +3,7 @@ import hashlib
 from django.db import connection, transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditLog
+from apps.audit.models import AuditLog, AuditScope
 from apps.authorization.company import require_permission
 from apps.billing.access import current_subscription
 from apps.billing.models import BillingPlanEntitlement
@@ -346,9 +346,11 @@ def module_detail_for_company(company, slug: str, user=None) -> dict:
     }
 
 
-def install_module(*, user, company, slug: str, request=None, config: dict = None, enforce_permission: bool = True) -> dict:
+def install_module(*, user, company, slug: str, request=None, config: dict = None, enforce_permission: bool = True, scope: str = None) -> dict:
     ensure_module_catalog()
     _load_installers()
+    if scope is None:
+        scope = AuditScope.PLATFORM if not enforce_permission else AuditScope.COMPANY
     if enforce_permission:
         require_permission(user, company.id, "modules.install")
     module = ModuleDefinition.objects.filter(slug=slug, is_public=True).first()
@@ -404,6 +406,7 @@ def install_module(*, user, company, slug: str, request=None, config: dict = Non
             AuditLog.objects.create(
                 company=company,
                 actor=user,
+                scope=scope,
                 action="module.installed",
                 object_type="company_module_installation",
                 object_id=row.id,
@@ -423,10 +426,12 @@ def install_module(*, user, company, slug: str, request=None, config: dict = Non
     return _payload(module, row)
 
 
-def uninstall_module(*, user, company, slug: str, request=None, enforce_permission: bool = True) -> dict:
+def uninstall_module(*, user, company, slug: str, request=None, enforce_permission: bool = True, scope: str = None) -> dict:
     """Mark a module uninstalled without deleting business rows (ADR-011 / doc 16)."""
     ensure_module_catalog()
     _load_installers()
+    if scope is None:
+        scope = AuditScope.PLATFORM if not enforce_permission else AuditScope.COMPANY
     if enforce_permission:
         require_permission(user, company.id, "modules.uninstall")
     module = ModuleDefinition.objects.filter(slug=slug, is_public=True).first()
@@ -450,6 +455,7 @@ def uninstall_module(*, user, company, slug: str, request=None, enforce_permissi
         AuditLog.objects.create(
             company=company,
             actor=user,
+            scope=scope,
             action="module.uninstalled",
             object_type="company_module_installation",
             object_id=row.id,

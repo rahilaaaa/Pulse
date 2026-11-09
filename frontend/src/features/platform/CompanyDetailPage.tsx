@@ -882,6 +882,13 @@ export function CompanyDetailPage() {
           </>
         }
       >
+        {/* {uninstallModuleMutation.isError ? (
+          <div>
+            <p>Action blocked</p>
+            <p>Cannot disable a module</p>
+          </div>
+        ): null} */}
+        
         <div className="rounded-md bg-amber-50 dark:bg-amber-950/40 p-3 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200">
           <p className="font-semibold">Data retention assurance:</p>
           <p className="mt-1">Module uninstallation sets the company installation record to disabled/uninstalled. No database tables, schema columns, or business transactions will be dropped or deleted.</p>

@@ -10,26 +10,39 @@ import { LoadingState } from "../../shared/ui/States";
 
 type Preview = {
   email: string;
-  company_display_name: string;
-  account_exists: boolean;
+  company_display_name?: string;
+  role_name?: string;
+  role_description?: string;
+  first_name?: string;
+  last_name?: string;
+  account_exists?: boolean;
 };
 
-type JoinResult = CurrentUser & { company_id: string };
+type JoinResult = CurrentUser & { company_id?: string };
 
 export function AcceptInvitePage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const token = params.get("token") || "";
+  const isPlatform = params.get("platform") === "true";
+
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [formError, setFormError] = useState("");
+  const [successNotice, setSuccessNotice] = useState("");
 
   const preview = useQuery({
-    queryKey: ["invitation-preview", token],
-    queryFn: () => api<Preview>(`/api/v1/invitations/preview/?token=${encodeURIComponent(token)}`),
+    queryKey: ["invitation-preview", token, isPlatform],
+    queryFn: () =>
+      isPlatform
+        ? api<Preview>(`/api/v1/platform/invitations/verify/?token=${encodeURIComponent(token)}`)
+        : api<Preview>(`/api/v1/invitations/preview/?token=${encodeURIComponent(token)}`),
     enabled: Boolean(token),
     retry: false,
   });
+
   const current = useQuery({
     queryKey: ["me"],
     queryFn: () => api<CurrentUser>("/api/v1/auth/me/"),
@@ -45,7 +58,29 @@ export function AcceptInvitePage() {
     },
   });
 
-  const join = useMutation({
+  const acceptPlatform = useMutation({
+    mutationFn: () =>
+      api<{ accepted: boolean; email: string }>("/api/v1/platform/invitations/accept/", {
+        method: "POST",
+        body: JSON.stringify({
+          token,
+          password,
+          first_name: firstName || undefined,
+          last_name: lastName || undefined,
+        }),
+      }),
+    onSuccess: () => {
+      setSuccessNotice("Platform operator account activated! You can now sign in.");
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
+    },
+    onError: (error) => {
+      setFormError(error instanceof ApiError ? error.message : "Could not accept operator invitation.");
+    },
+  });
+
+  const joinCompany = useMutation({
     mutationFn: () =>
       api<JoinResult>("/api/v1/invitations/join/", {
         method: "POST",
@@ -61,8 +96,12 @@ export function AcceptInvitePage() {
     },
   });
 
-  const accept = useMutation({
-    mutationFn: () => api<{ company_id: string }>("/api/v1/invitations/accept/", { method: "POST", body: JSON.stringify({ token }) }),
+  const acceptCompany = useMutation({
+    mutationFn: () =>
+      api<{ company_id: string }>("/api/v1/invitations/accept/", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["me"] });
       await queryClient.invalidateQueries({ queryKey: ["workspace"] });
@@ -94,15 +133,73 @@ export function AcceptInvitePage() {
   if (preview.error) {
     return (
       <AuthFrame>
-        <AuthCard title="Invitation unavailable" description={preview.error instanceof ApiError ? preview.error.message : "This invitation link is not valid."}>
+        <AuthCard title="Invitation unavailable" description={preview.error instanceof ApiError ? preview.error.message : "This invitation link is not valid or has expired."}>
           <Link className="text-sm font-medium text-teal-800" to="/login">Sign in</Link>
         </AuthCard>
       </AuthFrame>
     );
   }
 
+  // Platform Operator Invitation Flow
+  if (isPlatform) {
+    const data = preview.data!;
+    return (
+      <AuthFrame>
+        <AuthCard
+          title="Join as Platform Operator"
+          description={`You were invited with role "${data.role_name}". Set your password to activate your operator account.`}
+        >
+          {successNotice ? (
+            <div className="rounded-lg bg-teal-50 border border-teal-200 p-4 text-sm text-teal-900 text-center font-medium">
+              {successNotice}
+            </div>
+          ) : (
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setFormError("");
+                if (password.length < 6) {
+                  setFormError("Use at least 6 characters for your password.");
+                  return;
+                }
+                acceptPlatform.mutate();
+              }}
+            >
+              <TextField label="Email address" value={data.email} readOnly />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField
+                  label="First name"
+                  value={firstName || data.first_name || ""}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+                <TextField
+                  label="Last name"
+                  value={lastName || data.last_name || ""}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
+              <PasswordField
+                label="Choose a password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+              {formError ? <p className="text-sm text-rose-700">{formError}</p> : null}
+              <Button type="submit" className="w-full rounded-lg py-2.5" disabled={acceptPlatform.isPending}>
+                {acceptPlatform.isPending ? "Activating account…" : "Activate Operator Account"}
+              </Button>
+            </form>
+          )}
+        </AuthCard>
+      </AuthFrame>
+    );
+  }
+
+  // Company Membership Invitation Flow
   const invitedEmail = preview.data!.email;
-  const companyName = preview.data!.company_display_name;
+  const companyName = preview.data!.company_display_name || "Company";
   const signedIn = current.data;
   const matchingSession = signedIn?.email === invitedEmail;
   const accountExists = preview.data!.account_exists;
@@ -130,8 +227,8 @@ export function AcceptInvitePage() {
         <AuthCard title={`Join ${companyName}`} description={`Continue as ${invitedEmail} to enter the company dashboard.`}>
           <div className="space-y-3">
             {formError ? <p className="text-sm text-rose-700">{formError}</p> : null}
-            <Button type="button" className="w-full" disabled={accept.isPending} onClick={() => { setFormError(""); accept.mutate(); }}>
-              {accept.isPending ? "Joining…" : "Enter company dashboard"}
+            <Button type="button" className="w-full" disabled={acceptCompany.isPending} onClick={() => { setFormError(""); acceptCompany.mutate(); }}>
+              {acceptCompany.isPending ? "Joining…" : "Enter company dashboard"}
             </Button>
           </div>
         </AuthCard>
@@ -158,7 +255,7 @@ export function AcceptInvitePage() {
               setFormError("Use at least 6 characters.");
               return;
             }
-            join.mutate();
+            joinCompany.mutate();
           }}
           noValidate
         >
@@ -171,8 +268,8 @@ export function AcceptInvitePage() {
             required
           />
           {formError ? <p className="text-sm text-rose-700">{formError}</p> : null}
-          <Button type="submit" className="w-full rounded-lg py-2.5" disabled={join.isPending}>
-            {join.isPending ? "Joining…" : "Join company"}
+          <Button type="submit" className="w-full rounded-lg py-2.5" disabled={joinCompany.isPending}>
+            {joinCompany.isPending ? "Joining…" : "Join company"}
           </Button>
           {accountExists ? (
             <p className="text-center text-sm text-slate-500 dark:text-slate-400">

@@ -48,6 +48,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "ACCESS MANAGEMENT",
     items: [
       { to: "/platform/users", label: "Platform Operators" },
+      { to: "/platform/roles", label: "Roles" },
       { to: "/platform/permissions", label: "Permissions Catalog" },
     ],
   },

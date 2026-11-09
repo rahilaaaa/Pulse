@@ -7,11 +7,23 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.dateparse import parse_date
 
-from apps.audit.models import AuditLog
-from apps.authorization.models import CompanyRole, MembershipRoleAssignment, PlatformPermissionGrant
+from apps.audit.models import AuditLog, AuditScope
+from apps.authorization.models import (
+    CompanyRole,
+    MembershipRoleAssignment,
+    OperatorStatus,
+    PlatformOperatorProfile,
+    PlatformPermissionGrant,
+    PlatformRole,
+    PlatformSuperAdmin,
+)
 from apps.authorization.services import (
     MANAGE_CODE,
     count_active_managers,
+    ensure_not_super_admin_target,
+    ensure_super_admin_actor,
+    get_operator_profile,
+    is_super_admin,
     list_platform_permission_catalog,
     normalize_permission_codes,
     platform_permission_codes,
@@ -65,6 +77,27 @@ from apps.platform_admin.settings_services import (  # noqa: F401
     onboarding_monitoring,
     platform_health_overview,
     update_platform_settings,
+)
+from apps.platform_admin.operator_services import (  # noqa: F401
+    accept_platform_invitation,
+    create_platform_invitation,
+    create_platform_role,
+    deactivate_platform_operator,
+    delete_platform_role,
+    get_operator_activity_history,
+    get_platform_operator_detail,
+    get_platform_role_detail,
+    list_platform_operators,
+    list_platform_roles,
+    reactivate_platform_operator,
+    resend_platform_invitation,
+    revoke_operator_sessions,
+    revoke_platform_invitation,
+    suspend_platform_operator,
+    transfer_super_admin_ownership,
+    update_platform_operator,
+    update_platform_role,
+    verify_platform_invitation,
 )
 
 
@@ -260,26 +293,40 @@ def get_company_dashboard(*, company_id) -> dict:
 
 
 def list_users(*, query_params) -> dict:
+    from apps.authorization.models import OperatorStatus, PlatformRole
+    from apps.authorization.services import is_super_admin
     details = []
     queryset = User.objects.annotate(
         membership_count=Count("memberships", filter=Q(memberships__status=MembershipStatus.ACTIVE)),
         platform_grant_count=Count("platform_grants"),
-    )
+    ).select_related("platform_profile__role")
+
     search = (query_params.get("q") or "").strip()
     if len(search) > 100:
         details.append({"field": "q", "code": "max_length", "message": "Enter at most 100 characters."})
     elif search:
         queryset = queryset.filter(
-            Q(email__icontains=search) | Q(first_name__icontains=search) | Q(last_name__icontains=search)
+            Q(email__icontains=search)
+            | Q(first_name__icontains=search)
+            | Q(last_name__icontains=search)
+            | Q(platform_profile__role__name__icontains=search)
         )
 
-    account_status = (query_params.get("account_status") or "").strip()
-    if account_status == "active":
-        queryset = queryset.filter(is_active=True)
-    elif account_status == "inactive":
-        queryset = queryset.filter(is_active=False)
-    elif account_status:
-        details.append({"field": "account_status", "code": "invalid", "message": "Choose active or inactive."})
+    status_filter = (query_params.get("status") or query_params.get("account_status") or "").strip().lower()
+    if status_filter == "active":
+        queryset = queryset.filter(is_active=True).exclude(platform_profile__status__in=[OperatorStatus.SUSPENDED, OperatorStatus.DEACTIVATED])
+    elif status_filter == "suspended":
+        queryset = queryset.filter(platform_profile__status=OperatorStatus.SUSPENDED)
+    elif status_filter in ("inactive", "deactivated"):
+        queryset = queryset.filter(Q(is_active=False) | Q(platform_profile__status=OperatorStatus.DEACTIVATED))
+    elif status_filter:
+        details.append({"field": "status", "code": "invalid", "message": "Choose active, suspended, or inactive."})
+
+    role_filter = (query_params.get("role") or "").strip()
+    if role_filter:
+        queryset = queryset.filter(
+            Q(platform_profile__role__id=role_filter) | Q(platform_profile__role__slug=role_filter)
+        )
 
     email_verified = (query_params.get("email_verified") or "").strip()
     if email_verified == "yes":
@@ -291,9 +338,15 @@ def list_users(*, query_params) -> dict:
 
     has_platform_grants = (query_params.get("has_platform_grants") or "").strip()
     if has_platform_grants == "yes":
-        queryset = queryset.filter(platform_grant_count__gt=0)
+        queryset = queryset.filter(
+            Q(platform_grant_count__gt=0) | Q(platform_profile__isnull=False) | Q(super_admin_record__isnull=False)
+        )
     elif has_platform_grants == "no":
-        queryset = queryset.filter(platform_grant_count=0)
+        queryset = queryset.filter(
+            platform_grant_count=0,
+            platform_profile__isnull=True,
+            super_admin_record__isnull=True,
+        )
     elif has_platform_grants:
         details.append({"field": "has_platform_grants", "code": "invalid", "message": "Choose yes or no."})
 
@@ -310,6 +363,7 @@ def list_users(*, query_params) -> dict:
 
 
 def _serialize_user(user: User, *, include_permissions: bool = False) -> dict:
+    from apps.authorization.services import get_operator_profile, is_super_admin
     membership_count = getattr(user, "membership_count", None)
     if membership_count is None:
         membership_count = CompanyMembership.objects.filter(
@@ -318,12 +372,38 @@ def _serialize_user(user: User, *, include_permissions: bool = False) -> dict:
     platform_grant_count = getattr(user, "platform_grant_count", None)
     if platform_grant_count is None:
         platform_grant_count = PlatformPermissionGrant.objects.filter(user=user).count()
+
+    sa = is_super_admin(user)
+    profile = get_operator_profile(user)
+
+    role_data = None
+    if profile and profile.role:
+        role_data = {
+            "id": str(profile.role.id),
+            "name": profile.role.name,
+            "slug": profile.role.slug,
+        }
+
+    status = "active" if user.is_active else "inactive"
+    status_reason = ""
+    if sa:
+        status = "active"
+    elif profile is not None:
+        status = profile.status
+        status_reason = profile.status_reason
+
     payload = {
         "id": str(user.id),
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
         "is_active": user.is_active,
+        "is_super_admin": sa,
+        "role": role_data,
+        "account_status": status,
+        "status": status,
+        "status_reason": status_reason,
+        "mfa_status": "Disabled",
         "email_verified": user.email_verified_at is not None,
         "created_at": user.created_at.astimezone(datetime_timezone.utc).isoformat().replace("+00:00", "Z"),
         "last_login": _iso(user.last_login),
@@ -332,6 +412,14 @@ def _serialize_user(user: User, *, include_permissions: bool = False) -> dict:
     }
     if include_permissions:
         payload["permission_codes"] = platform_permission_codes(user)
+        payload["effective_permissions"] = payload["permission_codes"]
+        if profile and profile.role:
+            payload["role_permissions"] = sorted(profile.role.role_permissions.values_list("permission_id", flat=True))
+        elif sa:
+            payload["role_permissions"] = payload["permission_codes"]
+        else:
+            payload["role_permissions"] = []
+        payload["custom_permissions"] = profile.custom_permissions if profile else []
     return payload
 
 
@@ -366,8 +454,23 @@ def get_user(*, user_id) -> dict:
 
 
 def create_platform_user(*, actor: User, payload: dict, request) -> dict:
+    from apps.authorization.models import OperatorStatus, PlatformOperatorProfile, PlatformRole
+    from apps.authorization.services import ensure_super_admin_actor, is_super_admin
     if not isinstance(payload, dict):
         raise validation_error([{"field": "", "code": "invalid", "message": "Send a JSON object."}])
+
+    # If role_id is passed, require Super Admin
+    role_id = payload.get("role_id")
+    if role_id:
+        ensure_super_admin_actor(actor, "invite platform operators with dynamic roles")
+        role = PlatformRole.objects.filter(pk=role_id).first()
+        if role is None:
+            raise not_found("Selected platform role was not found.")
+        codes = sorted(role.role_permissions.values_list("permission_id", flat=True))
+    else:
+        codes = normalize_permission_codes(payload.get("permission_codes"))
+        role = None
+
     email_raw = payload.get("email")
     if not isinstance(email_raw, str) or "@" not in email_raw:
         raise validation_error([{"field": "email", "code": "invalid", "message": "Enter an email address."}])
@@ -382,10 +485,10 @@ def create_platform_user(*, actor: User, payload: dict, request) -> dict:
         raise validation_error([{"field": "first_name", "code": "invalid", "message": "Enter a name."}])
     first_name = first_name.strip()[:150]
     last_name = last_name.strip()[:150]
-    codes = normalize_permission_codes(payload.get("permission_codes"))
-    if not codes:
+
+    if not codes and not role:
         raise validation_error(
-            [{"field": "permission_codes", "code": "required", "message": "Choose at least one platform permission."}]
+            [{"field": "role_id", "code": "required", "message": "Select a platform role or at least one platform permission."}]
         )
     send_invite = payload.get("send_invite", True)
     if not isinstance(send_invite, bool):
@@ -416,10 +519,20 @@ def create_platform_user(*, actor: User, payload: dict, request) -> dict:
                 user.last_name = last_name
             user.save(update_fields=["first_name", "last_name", "updated_at"])
 
+        profile, _ = PlatformOperatorProfile.objects.get_or_create(
+            user=user,
+            defaults={"role": role, "status": OperatorStatus.ACTIVE},
+        )
+        if role:
+            profile.role = role
+            profile.status = OperatorStatus.ACTIVE
+            profile.save()
+
         before, after = sync_platform_grants(user=user, codes=codes, granted_by=actor)
         AuditLog.objects.create(
             company=None,
             actor=actor,
+            scope=AuditScope.PLATFORM,
             action="platform.user.created" if created else "platform.user.updated",
             object_type="user",
             object_id=user.id,
@@ -427,6 +540,7 @@ def create_platform_user(*, actor: User, payload: dict, request) -> dict:
                 "email": user.email,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
+                "role_id": str(role.id) if role else None,
                 "permission_codes": after,
                 "created": created,
             },
@@ -437,6 +551,7 @@ def create_platform_user(*, actor: User, payload: dict, request) -> dict:
             AuditLog.objects.create(
                 company=None,
                 actor=actor,
+                scope=AuditScope.PLATFORM,
                 action="platform.grant.changed",
                 object_type="user",
                 object_id=user.id,
@@ -467,11 +582,33 @@ def create_platform_user(*, actor: User, payload: dict, request) -> dict:
 
 
 def update_platform_user(*, actor: User, user_id, payload: dict, request) -> dict:
+    from apps.authorization.models import PlatformOperatorProfile, PlatformRole
+    from apps.authorization.services import (
+        ensure_not_super_admin_target,
+        ensure_super_admin_actor,
+        get_operator_profile,
+        is_super_admin,
+    )
     if not isinstance(payload, dict):
         raise validation_error([{"field": "", "code": "invalid", "message": "Send a JSON object."}])
     user = User.objects.filter(pk=user_id).first()
     if user is None:
         raise not_found("That user was not found.")
+
+    is_target_sa = is_super_admin(user)
+    if is_target_sa and actor.id != user.id:
+        AuditLog.objects.create(
+            company=None,
+            actor=actor,
+            scope=AuditScope.PLATFORM,
+            action="platform.security.super_admin_modification_blocked",
+            object_type="user",
+            object_id=user.id,
+            after={"attempted_payload": payload},
+            ip_address=_request_ip(request),
+            request_id=_request_id(request),
+        )
+        ensure_not_super_admin_target(user, "modified by another operator")
 
     before_profile = {
         "first_name": user.first_name,
@@ -500,6 +637,11 @@ def update_platform_user(*, actor: User, user_id, payload: dict, request) -> dic
         is_active = payload.get("is_active")
         if not isinstance(is_active, bool):
             raise validation_error([{"field": "is_active", "code": "invalid", "message": "Choose on or off."}])
+        if is_target_sa and is_active is False:
+            raise conflict(
+                "The Super Admin account cannot be deactivated.",
+                [{"field": "is_active", "code": "super_admin_protected", "message": "The Super Admin cannot be deactivated."}],
+            )
         if actor.id == user.id and is_active is False:
             raise conflict(
                 "You cannot deactivate your own account.",
@@ -524,12 +666,65 @@ def update_platform_user(*, actor: User, user_id, payload: dict, request) -> dic
         user.is_active = is_active
         updates.append("is_active")
 
+    role_updated = False
+    new_role = None
+    if "role_id" in payload:
+        if is_target_sa:
+            raise conflict(
+                "The Super Admin cannot be assigned a dynamic role.",
+                [{"field": "role_id", "code": "super_admin_protected", "message": "Super Admin role cannot be changed through normal management."}],
+            )
+        ensure_super_admin_actor(actor, "change platform operator roles")
+        role_id = payload.get("role_id")
+        if role_id:
+            new_role = PlatformRole.objects.filter(pk=role_id).first()
+            if new_role is None:
+                raise not_found("Selected role was not found.")
+        role_updated = True
+
     grant_before = grant_after = None
     with transaction.atomic():
         if updates:
             updates.append("updated_at")
             user.save(update_fields=updates)
-        if "permission_codes" in payload:
+
+        if role_updated:
+            profile = get_operator_profile(user)
+            if profile is None:
+                profile = PlatformOperatorProfile.objects.create(user=user)
+            before_role_id = str(profile.role_id) if profile.role_id else None
+            profile.role = new_role
+            profile.session_version += 1
+            profile.save(update_fields=["role", "session_version", "updated_at"])
+
+            if new_role:
+                codes = sorted(new_role.role_permissions.values_list("permission_id", flat=True))
+                sync_platform_grants(user=user, codes=codes, granted_by=actor)
+
+            AuditLog.objects.create(
+                company=None,
+                actor=actor,
+                scope=AuditScope.PLATFORM,
+                action="platform.operator.role_changed",
+                object_type="user",
+                object_id=user.id,
+                before={"role_id": before_role_id},
+                after={"role_id": str(new_role.id) if new_role else None, "role_name": new_role.name if new_role else None},
+                ip_address=_request_ip(request),
+                request_id=_request_id(request),
+            )
+
+        if "custom_permissions" in payload and not is_target_sa:
+            ensure_super_admin_actor(actor, "edit custom permissions")
+            custom_perms = normalize_permission_codes(payload.get("custom_permissions"))
+            profile = get_operator_profile(user)
+            if profile is None:
+                profile = PlatformOperatorProfile.objects.create(user=user)
+            profile.custom_permissions = custom_perms
+            profile.session_version += 1
+            profile.save(update_fields=["custom_permissions", "session_version", "updated_at"])
+
+        if "permission_codes" in payload and not is_target_sa:
             codes = normalize_permission_codes(payload.get("permission_codes"))
             grant_before, grant_after = sync_platform_grants(user=user, codes=codes, granted_by=actor)
 
@@ -542,6 +737,7 @@ def update_platform_user(*, actor: User, user_id, payload: dict, request) -> dic
             AuditLog.objects.create(
                 company=None,
                 actor=actor,
+                scope=AuditScope.PLATFORM,
                 action="platform.user.updated",
                 object_type="user",
                 object_id=user.id,
@@ -554,6 +750,7 @@ def update_platform_user(*, actor: User, user_id, payload: dict, request) -> dic
             AuditLog.objects.create(
                 company=None,
                 actor=actor,
+                scope=AuditScope.PLATFORM,
                 action="platform.grant.changed",
                 object_type="user",
                 object_id=user.id,
@@ -597,6 +794,7 @@ def send_platform_user_password_reset(*, actor: User, user_id, request) -> dict:
     AuditLog.objects.create(
         company=None,
         actor=actor,
+        scope=AuditScope.PLATFORM,
         action="platform.user.password_reset_sent",
         object_type="user",
         object_id=user.id,
@@ -647,6 +845,10 @@ def list_audit_logs(*, query_params) -> dict:
     if actor_id:
         queryset = queryset.filter(actor_id=actor_id)
 
+    scope = (query_params.get("scope") or "").strip()
+    if scope:
+        queryset = queryset.filter(scope=scope)
+
     company_id = (query_params.get("company_id") or "").strip()
     if company_id:
         queryset = queryset.filter(company_id=company_id)
@@ -669,6 +871,7 @@ def list_audit_logs(*, query_params) -> dict:
     page["results"] = [
         {
             "id": str(row.id),
+            "scope": row.scope,
             "company_id": str(row.company_id) if row.company_id else None,
             "company_name": row.company.display_name if row.company else None,
             "actor_user_id": str(row.actor_id) if row.actor_id else None,
@@ -694,6 +897,7 @@ def get_audit_log_detail(*, log_id) -> dict:
         raise not_found("Audit log not found.")
     return {
         "id": str(row.id),
+        "scope": row.scope,
         "company_id": str(row.company_id) if row.company_id else None,
         "company_name": row.company.display_name if row.company else None,
         "actor_user_id": str(row.actor_id) if row.actor_id else None,

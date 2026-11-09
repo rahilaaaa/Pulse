@@ -14,7 +14,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.audit.models import AuditLog
+from apps.audit.models import AuditLog, AuditScope, PLATFORM_ACTIONS
 from apps.authorization.company import (
     assert_owner_remains,
     authorize_owner_role_change,
@@ -224,16 +224,28 @@ class OverviewView(APIView):
             for row in installations.filter(status=InstallationStatus.FAILED)
         ]
         activity = []
-        for row in AuditLog.objects.filter(company=company).select_related("actor").order_by("-created_at")[:8]:
-            actor_name = None
-            if row.actor_id:
+        company_member_ids = set(
+            CompanyMembership.objects.filter(company=company).values_list("user_id", flat=True)
+        )
+        recent_logs = (
+            AuditLog.objects.filter(company=company, scope=AuditScope.COMPANY)
+            .exclude(action__startswith="platform.")
+            .exclude(action__in=PLATFORM_ACTIONS)
+            .select_related("actor")
+            .order_by("-created_at")[:8]
+        )
+        for row in recent_logs:
+            actor_name = "System"
+            actor_email = None
+            if row.actor_id and row.actor_id in company_member_ids:
                 actor_name = f"{row.actor.first_name} {row.actor.last_name}".strip() or row.actor.email
+                actor_email = row.actor.email
             activity.append(
                 {
                     "action": row.action,
                     "object_type": row.object_type,
                     "created_at": row.created_at.isoformat(),
-                    "actor_email": row.actor.email if row.actor_id else None,
+                    "actor_email": actor_email,
                     "actor_name": actor_name,
                 }
             )
@@ -253,6 +265,7 @@ class OverviewView(APIView):
                     "timezone": company.timezone,
                     "country_code": company.country_code,
                     "created_at": company.created_at.isoformat(),
+                    # "updated_at": company.updated_at.isoformat() if company.updated_at else None  
                 },
                 "billing": None
                 if billing is None

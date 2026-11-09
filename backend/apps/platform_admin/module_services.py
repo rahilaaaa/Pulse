@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.db.models import Count, Q
 
-from apps.audit.models import AuditLog
+from apps.audit.models import AuditLog, AuditScope
 from apps.identity.models import User
 from apps.modules_registry.manifests import MANIFEST_BY_SLUG
 from apps.modules_registry.models import CompanyModuleInstallation, InstallationStatus, ModuleDefinition
@@ -129,6 +129,7 @@ def update_platform_module_availability(*, actor: User, slug: str, payload: dict
         AuditLog.objects.create(
             company=None,
             actor=actor,
+            scope=AuditScope.PLATFORM,
             action="platform.module.availability_changed",
             object_type="module_definition",
             object_id=None,
@@ -150,6 +151,7 @@ def install_company_module(*, actor: User, company_id, slug: str, request) -> di
         slug=slug,
         request=request,
         enforce_permission=False,
+        scope=AuditScope.PLATFORM,
     )
 
 
@@ -164,4 +166,5 @@ def uninstall_company_module(*, actor: User, company_id, slug: str, request) -> 
         slug=slug,
         request=request,
         enforce_permission=False,
+        scope=AuditScope.PLATFORM,
     )

@@ -15,6 +15,7 @@ export type OverviewPayload = {
     timezone?: string;
     country_code?: string;
     created_at?: string;
+    // updated_at?: string | null;
   };
   billing?: { billing_name: string; billing_email: string; gstin: string; country_code: string } | null;
   subscription: WorkspacePayload["subscription"];
@@ -54,6 +55,7 @@ export type MePayload = {
   email: string;
   first_name: string;
   last_name: string;
+  // last_login?: string | null;
   memberships: Array<{ company_id: string; company_display_name: string; status: string }>;
 };
 

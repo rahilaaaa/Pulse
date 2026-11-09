@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.db import connection, transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditLog
+from apps.audit.models import AuditLog, AuditScope
 from apps.identity.models import User
 from apps.platform_admin.models import PlatformSetting
 from apps.tenants.models import Company, CompanyStatus, InvitationStatus, MembershipInvitation, OnboardingState
@@ -78,6 +78,7 @@ def update_platform_settings(*, actor: User, payload: dict, request) -> dict:
         AuditLog.objects.create(
             company=None,
             actor=actor,
+            scope=AuditScope.PLATFORM,
             action="platform.settings.updated",
             object_type="platform_settings",
             object_id=None,

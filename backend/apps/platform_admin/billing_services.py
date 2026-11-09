@@ -3,7 +3,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.audit.models import AuditLog
+from apps.audit.models import AuditLog, AuditScope
 from apps.billing.models import (
     BillingInterval,
     BillingPlan,
@@ -291,6 +291,7 @@ def change_company_subscription_plan(*, actor: User, company_id, payload: dict, 
         AuditLog.objects.create(
             company=company,
             actor=actor,
+            scope=AuditScope.PLATFORM,
             action="platform.subscription.plan_changed",
             object_type="subscription",
             object_id=sub.id,
