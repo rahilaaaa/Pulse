@@ -20,8 +20,8 @@ const notices = {
   security: {
     title: "Security",
     paragraphs: [
-      "Company accounts sign in with email and password. Passwords must be at least 6 characters.",
-      "Platform operators also confirm a code from an authenticator app before a session starts.",
+      "Company accounts and platform operators sign in with email and password. Passwords must be at least 6 characters.",
+      "Email verification is required before creating a company or accepting invitations.",
       "The session is kept in an HTTP-only cookie on this site.",
     ],
   },
@@ -32,7 +32,7 @@ export function NoticePage({ kind }: { kind: keyof typeof notices }) {
   return (
     <AuthFrame>
       <AuthCard title={notice.title}>
-        <div className="space-y-3 text-sm leading-6 text-slate-600">
+        <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
           {notice.paragraphs.map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>
           ))}

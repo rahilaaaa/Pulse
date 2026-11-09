@@ -12,7 +12,7 @@ export function ModuleIcon({ slug, compact = false }: { slug: string; compact?: 
     finance: "M5 7h14v10H5zM8 11h8M8 14h5",
   };
   return (
-    <span className={`inline-flex shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-800 ${compact ? "h-8 w-8" : "h-11 w-11"}`}>
+    <span className={`inline-flex shrink-0 items-center justify-center rounded-xl bg-teal-50 dark:bg-teal-950 text-teal-800 ${compact ? "h-8 w-8" : "h-11 w-11"}`}>
       <svg viewBox="0 0 24 24" className={compact ? "h-4 w-4" : "h-6 w-6"} fill="none" aria-hidden="true">
         <path d={paths[slug] ?? paths.hrms} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -38,24 +38,24 @@ export function ModuleSummary({
   const midpoint = Math.ceil(module.includes.length / 2);
   const columns = [module.includes.slice(0, midpoint), module.includes.slice(midpoint)];
   return (
-    <article className="grid gap-6 rounded-2xl border border-slate-200 bg-white p-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+    <article className="grid gap-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div>
         <div className="flex items-start gap-3">
           <ModuleIcon slug={module.slug} />
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold text-slate-900">{module.name}</h2>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{installed ? "Selected" : "Not installed"}</span>
-              <span className="text-xs text-slate-500">v{module.version} · by Pulse</span>
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{module.name}</h2>
+              <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">{installed ? "Selected" : "Not installed"}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">v{module.version} · by Pulse</span>
             </div>
-            <p className="mt-1 text-sm text-slate-500">{module.category}</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{module.category}</p>
           </div>
         </div>
-        <p className="mt-4 text-sm leading-6 text-slate-600">{module.detail}</p>
-        <p className="mt-5 text-sm font-medium text-slate-500">Includes</p>
+        <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">{module.detail}</p>
+        <p className="mt-5 text-sm font-medium text-slate-500 dark:text-slate-400">Includes</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           {columns.map((column) => (
-            <ul key={column[0]} className="space-y-2 text-sm text-slate-800">
+            <ul key={column[0]} className="space-y-2 text-sm text-slate-800 dark:text-slate-200">
               {column.map((item) => (
                 <li key={item} className="flex gap-2"><Check />{item}</li>
               ))}
@@ -63,23 +63,23 @@ export function ModuleSummary({
           ))}
         </div>
       </div>
-      <aside className="space-y-4 rounded-xl bg-slate-50 p-4">
+      <aside className="space-y-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
         <div>
-          <p className="text-sm text-slate-500">Pricing on your plan</p>
-          <p className="mt-1 font-semibold text-slate-900">Included — no additional charge</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Pricing on your plan</p>
+          <p className="mt-1 font-semibold text-slate-900 dark:text-slate-100">Included — no additional charge</p>
         </div>
         <div>
-          <p className="text-sm font-semibold text-slate-900">Permissions impact</p>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{module.permissionSummary}</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Permissions impact</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{module.permissionSummary}</p>
         </div>
         <div>
-          <p className="text-sm font-semibold text-slate-900">Configuration required</p>
-          <p className="mt-1 text-sm text-slate-600">{module.configuration.length} steps after install</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Configuration required</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{module.configuration.length} steps after install</p>
         </div>
         <Button type="button" className="w-full rounded-lg py-2.5" disabled={installed} onClick={onInstall}>
           {installed ? "Selected" : `Install ${module.name}`}
         </Button>
-        <button type="button" className="w-full text-sm font-semibold text-slate-700" onClick={onDetails}>View details</button>
+        <button type="button" className="w-full text-sm font-semibold text-slate-700 dark:text-slate-300" onClick={onDetails}>View details</button>
       </aside>
     </article>
   );
@@ -103,12 +103,12 @@ export function ModuleDetails({
           <ModuleIcon slug={module.slug} />
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold text-slate-900">{module.name}</h2>
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{module.name}</h2>
               <span className="text-sm text-slate-400">·</span>
               <span className="text-sm font-medium text-teal-800">{installed ? "Selected" : "Available"}</span>
             </div>
-            <p className="mt-1 text-sm text-slate-500">{module.category} · v{module.version} · by Pulse</p>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600">{module.pitch}</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{module.category} · v{module.version} · by Pulse</p>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{module.pitch}</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -120,17 +120,17 @@ export function ModuleDetails({
       </div>
       <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section>
-          <h3 className="text-base font-semibold text-slate-900">What you get</h3>
+          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">What you get</h3>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {module.groups.map((group) => (
-              <article key={group.title} className="rounded-xl border border-slate-200 bg-white p-4">
-                <h4 className="text-sm font-semibold text-slate-900">{group.title}</h4>
-                <ul className="mt-2 space-y-1.5 text-sm text-slate-700">
+              <article key={group.title} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{group.title}</h4>
+                <ul className="mt-2 space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
                   {group.items.map((item) => (
                     <li key={item} className="flex gap-2"><Check />{item}</li>
                   ))}
                 </ul>
-                {group.note ? <p className="mt-2 text-sm text-slate-500">{group.note}</p> : null}
+                {group.note ? <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{group.note}</p> : null}
               </article>
             ))}
           </div>
@@ -139,9 +139,9 @@ export function ModuleDetails({
           <InfoCard title="Pricing" body="Included in your plan. No additional charge." />
           <InfoCard title="Required permissions" body={module.permissionNote} />
           <InfoCard title="Data areas affected" body={module.dataAreas.map((line) => `• ${line}`).join("\n")} />
-          <article className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Configuration required</h3>
-            <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-slate-600">
+          <article className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Configuration required</h3>
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-slate-600 dark:text-slate-300">
               {module.configuration.map((step) => (
                 <li key={step}>{step}</li>
               ))}
@@ -155,9 +155,9 @@ export function ModuleDetails({
 
 function InfoCard({ title, body }: { title: string; body: string }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-      <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">{body}</p>
+    <article className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+      <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600 dark:text-slate-300">{body}</p>
     </article>
   );
 }
@@ -176,40 +176,40 @@ export function ModuleConfirm({
       <div className="flex items-start gap-3">
         <ModuleIcon slug={module.slug} />
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">Install {module.name}?</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Install {module.name}?</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
             Installing {module.name} will add these capabilities to this company workspace. You can configure access through roles and permissions.
           </p>
         </div>
       </div>
-      <section className="mt-6 divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white">
+      <section className="mt-6 divide-y divide-slate-200 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <div className="p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Capabilities that will be enabled</h3>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Capabilities that will be enabled</h3>
           <div className="mt-3 flex flex-wrap gap-2">
             {module.includes.map((item) => (
-              <span key={item} className="rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-800">{item}</span>
+              <span key={item} className="rounded-full bg-teal-50 dark:bg-teal-950 px-3 py-1 text-xs font-medium text-teal-800">{item}</span>
             ))}
           </div>
         </div>
         <div className="p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Permissions you can configure</h3>
-          <p className="mt-1 text-sm text-slate-500">Added to roles and permissions. Not granted to any role except full-access roles.</p>
-          <ul className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Permissions you can configure</h3>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Added to roles and permissions. Not granted to any role except full-access roles.</p>
+          <ul className="mt-3 grid gap-2 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
             {module.permissions.map((permission) => (
               <li key={permission.name}>• {permission.name} ({permission.actions})</li>
             ))}
           </ul>
         </div>
         <div className="p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Configuration steps after install</h3>
-          <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-slate-600">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Configuration steps after install</h3>
+          <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-slate-600 dark:text-slate-300">
             {module.configuration.map((step) => (
               <li key={step}>{step}</li>
             ))}
           </ol>
         </div>
         <div className="p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Pricing</h3>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Pricing</h3>
           <p className="mt-2 text-sm text-teal-800">Included in your plan — no additional charge, no checkout needed.</p>
         </div>
       </section>
@@ -240,10 +240,10 @@ export function ModuleProgress({ module, onDone }: { module: CatalogModule; onDo
 
   return (
     <div className="mx-auto max-w-xl pt-6">
-      <h2 className="text-xl font-semibold text-slate-900">Installing {module.name}</h2>
-      <p className="mt-1 text-sm text-slate-500">Adding {module.category.toLowerCase()} capabilities to your workspace. Your team can keep working.</p>
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+      <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Installing {module.name}</h2>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Adding {module.category.toLowerCase()} capabilities to your workspace. Your team can keep working.</p>
+      <section className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
           <div className="h-full rounded-full bg-teal-800 transition-all" style={{ width: `${width}%` }} />
         </div>
         <ol className="mt-5 space-y-3">
@@ -254,7 +254,7 @@ export function ModuleProgress({ module, onDone }: { module: CatalogModule; onDo
               <li key={step} className="flex items-center gap-3 text-sm">
                 <span
                   className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${
-                    done ? "bg-teal-800 text-white" : current ? "border-2 border-teal-800 text-teal-800" : "border border-slate-300 text-transparent"
+                    done ? "bg-teal-800 text-white" : current ? "border-2 border-teal-800 text-teal-800" : "border border-slate-300 dark:border-slate-600 text-transparent"
                   }`}
                 >
                   {done ? (
@@ -265,7 +265,7 @@ export function ModuleProgress({ module, onDone }: { module: CatalogModule; onDo
                     "•"
                   )}
                 </span>
-                <span className={done || current ? "font-medium text-slate-900" : "text-slate-400"}>{step}</span>
+                <span className={done || current ? "font-medium text-slate-900 dark:text-slate-100" : "text-slate-400"}>{step}</span>
               </li>
             );
           })}

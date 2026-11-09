@@ -166,6 +166,177 @@ def update_company_profile(*, user: User, payload: dict, request) -> dict:
     return _company_payload(company)
 
 
+def _company_billing_profile(company):
+    try:
+        return company.billing_profile
+    except ObjectDoesNotExist:
+        return None
+
+
+def company_settings_payload(company, *, permission_codes=None) -> dict:
+    billing = _company_billing_profile(company)
+    from apps.billing.services import subscription_summary
+
+    custom_data = dict(company.custom_data or {})
+    if permission_codes is not None:
+        from apps.tenants.custom_data_access import load_active_definitions, serialize_custom_data
+        from apps.tenants.models import FieldEntity
+
+        custom_data = serialize_custom_data(
+            load_active_definitions(company, FieldEntity.COMPANY),
+            custom_data,
+            entity=FieldEntity.COMPANY,
+            permission_codes=permission_codes,
+        )
+    return {
+        "legal_name": company.legal_name,
+        "display_name": company.display_name,
+        "slug": company.slug,
+        "status": company.status,
+        "timezone": company.timezone,
+        "country_code": company.country_code,
+        "custom_data": custom_data,
+        "created_at": company.created_at.isoformat() if company.created_at else None,
+        "subscription": subscription_summary(company),
+        "billing_name": billing.billing_name if billing else "",
+        "billing_email": billing.billing_email if billing else "",
+        "gstin": (billing.gstin or "") if billing else "",
+        "has_billing_profile": billing is not None,
+    }
+
+
+def update_company_settings(*, company, payload: dict, request) -> dict:
+    if not isinstance(payload, dict):
+        raise validation_error([{"field": "", "code": "invalid", "message": "Send a JSON object."}])
+
+    from apps.authorization.company import effective_permission_codes
+    from apps.tenants.custom_fields import normalize_custom_data
+    from apps.tenants.models import CompanyMembership, FieldEntity, MembershipStatus
+
+    details = []
+    actor_membership = (
+        CompanyMembership.objects.filter(company=company, user=request.user, status=MembershipStatus.ACTIVE).first()
+        if getattr(request, "user", None) and request.user.is_authenticated
+        else None
+    )
+    codes = effective_permission_codes(actor_membership) if actor_membership else set()
+    before = company_settings_payload(company, permission_codes=codes)
+    company_updates = []
+    billing = _company_billing_profile(company)
+
+    if "legal_name" in payload:
+        legal_name = _text(payload.get("legal_name"), "legal_name", details, maximum=255)
+        if legal_name:
+            company.legal_name = legal_name
+            company_updates.append("legal_name")
+    if "display_name" in payload:
+        display_name = _text(payload.get("display_name"), "display_name", details, maximum=255)
+        if display_name:
+            company.display_name = display_name
+            company_updates.append("display_name")
+    if "timezone" in payload:
+        timezone_name = _timezone(payload.get("timezone"), details)
+        if timezone_name and not any(item["field"] == "timezone" for item in details):
+            company.timezone = timezone_name
+            company_updates.append("timezone")
+    if "country_code" in payload:
+        country_code = _country(payload.get("country_code"), details)
+        if country_code and not any(item["field"] == "country_code" for item in details):
+            company.country_code = country_code
+            company_updates.append("country_code")
+
+    if "custom_data" in payload:
+        custom_data = normalize_custom_data(
+            company,
+            FieldEntity.COMPANY,
+            payload.get("custom_data"),
+            creating=False,
+            existing=company.custom_data or {},
+            permission_codes=codes,
+        )
+        if custom_data != dict(company.custom_data or {}):
+            company.custom_data = custom_data
+            company_updates.append("custom_data")
+
+    billing_touched = any(key in payload for key in ("gstin", "billing_name", "billing_email"))
+    if billing_touched and billing is None:
+        details.append(
+            {
+                "field": "gstin",
+                "code": "invalid",
+                "message": "Complete the company billing profile before editing tax and billing contact details.",
+            }
+        )
+
+    billing_updates = []
+    gstin = None
+    billing_name = None
+    billing_email = None
+    if billing is not None:
+        if "gstin" in payload:
+            gstin = _gstin(payload.get("gstin"), details)
+            if not any(item["field"] == "gstin" for item in details):
+                if gstin and billing.state_code and gstin[:2] != billing.state_code:
+                    details.append(
+                        {
+                            "field": "gstin",
+                            "code": "invalid",
+                            "message": "The GSTIN state code must match the billing state.",
+                        }
+                    )
+                else:
+                    billing.gstin = gstin
+                    billing_updates.append("gstin")
+        if "billing_name" in payload:
+            billing_name = _text(payload.get("billing_name"), "billing_name", details, maximum=255)
+            if billing_name and not any(item["field"] == "billing_name" for item in details):
+                billing.billing_name = billing_name
+                billing_updates.append("billing_name")
+        if "billing_email" in payload:
+            billing_email = _email(payload.get("billing_email"), details)
+            if billing_email and not any(item["field"] == "billing_email" for item in details):
+                billing.billing_email = billing_email
+                billing_updates.append("billing_email")
+        if "country_code" in payload and company.country_code:
+            billing.country_code = company.country_code
+            if "country_code" not in billing_updates:
+                billing_updates.append("country_code")
+
+    if details:
+        raise validation_error(details)
+
+    with transaction.atomic():
+        if company_updates:
+            company_updates.append("updated_at")
+            company.save(update_fields=company_updates)
+        if billing is not None and billing_updates:
+            billing_updates.append("updated_at")
+            billing.save(update_fields=billing_updates)
+        after = company_settings_payload(company, permission_codes=codes)
+        audit_keys = (
+            "legal_name",
+            "display_name",
+            "timezone",
+            "country_code",
+            "custom_data",
+            "gstin",
+            "billing_name",
+            "billing_email",
+        )
+        AuditLog.objects.create(
+            company=company,
+            actor=request.user if getattr(request, "user", None) and request.user.is_authenticated else None,
+            action="company.updated",
+            object_type="company",
+            object_id=company.id,
+            before={key: before[key] for key in audit_keys},
+            after={key: after[key] for key in audit_keys},
+            ip_address=_ip(request),
+            request_id=_request_id(request),
+        )
+    return after
+
+
 def save_billing_profile(*, user: User, payload: dict, request) -> dict:
     company, state = _owned_onboarding(user)
     if state.profile_completed_at is None:
@@ -251,6 +422,15 @@ def _owned_onboarding(user: User) -> tuple[Company, OnboardingState]:
 
 
 def _company_payload(company: Company) -> dict:
+    status_reason = None
+    if company.status in {CompanyStatus.SUSPENDED, CompanyStatus.CLOSED}:
+        action = "company.suspended" if company.status == CompanyStatus.SUSPENDED else "company.closed"
+        log = AuditLog.objects.filter(company=company, action=action).order_by("-created_at").first()
+        if log and isinstance(log.after, dict):
+            status_reason = log.after.get("reason")
+        if not status_reason and isinstance(company.custom_data, dict):
+            status_reason = company.custom_data.get("suspension_reason" if company.status == CompanyStatus.SUSPENDED else "closure_reason")
+
     return {
         "id": str(company.id),
         "slug": company.slug,
@@ -259,6 +439,9 @@ def _company_payload(company: Company) -> dict:
         "status": company.status,
         "timezone": company.timezone,
         "country_code": company.country_code,
+        "suspended_at": company.suspended_at.isoformat() if company.suspended_at else None,
+        "closed_at": company.closed_at.isoformat() if company.closed_at else None,
+        "status_reason": status_reason,
     }
 
 
@@ -381,11 +564,56 @@ def _optional_text(value, field: str, details: list, *, maximum: int) -> str | N
     return cleaned or None
 
 
+COUNTRY_ALIASES = {
+    "INDIA": "IN",
+    "IND": "IN",
+    "UNITED STATES": "US",
+    "UNITED STATES OF AMERICA": "US",
+    "USA": "US",
+    "UNITED KINGDOM": "GB",
+    "UK": "GB",
+    "GREAT BRITAIN": "GB",
+    "UNITED ARAB EMIRATES": "AE",
+    "UAE": "AE",
+    "SINGAPORE": "SG",
+    "SGP": "SG",
+    "GERMANY": "DE",
+    "DEU": "DE",
+    "FRANCE": "FR",
+    "FRA": "FR",
+    "CANADA": "CA",
+    "CAN": "CA",
+    "AUSTRALIA": "AU",
+    "AUS": "AU",
+    "SAUDI ARABIA": "SA",
+    "KSA": "SA",
+    "QATAR": "QA",
+    "KUWAIT": "KW",
+    "BAHRAIN": "BH",
+    "OMAN": "OM",
+    "MALAYSIA": "MY",
+    "INDONESIA": "ID",
+    "PHILIPPINES": "PH",
+    "NETHERLANDS": "NL",
+    "SWITZERLAND": "CH",
+    "IRELAND": "IE",
+    "JAPAN": "JP",
+    "CHINA": "CN",
+    "BRAZIL": "BR",
+    "SOUTH AFRICA": "ZA",
+    "NEW ZEALAND": "NZ",
+}
+
 def _country(value, details: list) -> str:
-    if not isinstance(value, str) or len(value.strip()) != 2 or not value.strip().isalpha():
+    if not isinstance(value, str):
         details.append({"field": "country_code", "code": "invalid", "message": "Enter a 2-letter country code."})
         return ""
-    return value.strip().upper()
+    cleaned = value.strip().upper()
+    cleaned = COUNTRY_ALIASES.get(cleaned, cleaned)
+    if len(cleaned) != 2 or not cleaned.isalpha():
+        details.append({"field": "country_code", "code": "invalid", "message": "Enter a 2-letter country code."})
+        return ""
+    return cleaned
 
 
 def _state_code(value, field: str, details: list) -> str:

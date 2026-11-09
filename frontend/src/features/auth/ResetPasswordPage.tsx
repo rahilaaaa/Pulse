@@ -62,7 +62,7 @@ export function ResetPasswordPage() {
           <form className="space-y-4" onSubmit={form.handleSubmit((values) => confirm.mutate(values))} noValidate>
             {!token ? <p className="text-sm text-rose-700">This page needs the token from the reset email.</p> : null}
             <PasswordField label="New password" required autoComplete="new-password" placeholder="Enter a new password" {...form.register("password")} error={form.formState.errors.password?.message} />
-            <ul className="space-y-1 text-sm text-slate-600">
+            <ul className="space-y-1 text-sm text-slate-600 dark:text-slate-300">
               {rules.map(([label, met]) => (
                 <li key={label} className={met ? "text-teal-800" : undefined}>{met ? "✓" : "•"} {label}</li>
               ))}

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ThemeToggle } from "../../shared/theme/ThemeToggle";
 import { PulseMark } from "../../shared/ui/PulseMark";
 import { Button } from "../../shared/ui/Button";
 
@@ -51,11 +52,12 @@ export function OnboardingShell({
 }) {
   return (
     <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
+      <header className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <PulseMark wordmark size="sm" />
-          <div className="flex items-center gap-3 text-sm text-slate-600">
+          <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
             <span className="hidden sm:inline">Signed in as {email}</span>
+            <ThemeToggle />
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-800 text-xs font-semibold text-white">{initials}</span>
             <Button type="button" variant="ghost" disabled={signingOut} onClick={onSignOut}>
               Sign out
@@ -63,7 +65,7 @@ export function OnboardingShell({
           </div>
         </div>
       </header>
-      <nav aria-label="Company setup progress" className="border-b border-slate-200 bg-white">
+      <nav aria-label="Company setup progress" className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <ol className="mx-auto flex max-w-7xl gap-5 overflow-x-auto px-4 py-4 sm:px-6">
           {STEPS.map(([key, label], index) => {
             const status = stepStatus(key, phase);
@@ -72,7 +74,7 @@ export function OnboardingShell({
               <li key={key} className="flex shrink-0 items-center gap-2 text-sm">
                 <span
                   className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
-                    status === "upcoming" ? "bg-slate-200 text-slate-500" : current ? "border-2 border-teal-800 text-teal-800" : "bg-teal-800 text-white"
+                    status === "upcoming" ? "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400" : current ? "border-2 border-teal-800 text-teal-800" : "bg-teal-800 text-white"
                   }`}
                 >
                   {status === "done" ? (
@@ -83,7 +85,7 @@ export function OnboardingShell({
                     index + 1
                   )}
                 </span>
-                <span className={current ? "font-semibold text-slate-900" : "text-slate-500"}>{label}</span>
+                <span className={current ? "font-semibold text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}>{label}</span>
               </li>
             );
           })}
@@ -92,8 +94,8 @@ export function OnboardingShell({
       <main className={`mx-auto w-full px-4 py-10 sm:px-6 ${wide ? "max-w-7xl" : "max-w-3xl"}`}>
         {heading ? (
           <>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{title}</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{description}</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{title}</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
           </>
         ) : null}
         <div className={heading ? "mt-8" : ""}>{children}</div>

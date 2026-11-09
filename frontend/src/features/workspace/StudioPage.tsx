@@ -49,17 +49,17 @@ export function StudioPage() {
   }
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Dashboard studio</h1>
-      <select className="rounded-lg border border-slate-300 px-3 py-2 text-sm" value={selectedRole} onChange={(event) => { setRoleId(event.target.value); setWidgets(null); }}>
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Dashboard studio</h1>
+      <select className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm" value={selectedRole} onChange={(event) => { setRoleId(event.target.value); setWidgets(null); }}>
         {roles.data?.results.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
       </select>
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold text-slate-900">Available widgets</h2>
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-100">Available widgets</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {(studio.data?.widgets ?? []).map((widget) => (
               <li key={widget.code} className="flex items-center justify-between gap-3">
-                <span><span className="font-medium">{widget.title}</span><span className="block text-slate-500">{widget.description}</span></span>
+                <span><span className="font-medium">{widget.title}</span><span className="block text-slate-500 dark:text-slate-400">{widget.description}</span></span>
                 <Button variant="secondary" type="button" onClick={() => setWidgets(chosen.includes(widget.code) ? chosen.filter((code) => code !== widget.code) : [...chosen, widget.code])}>
                   {chosen.includes(widget.code) ? "Remove" : "Add"}
                 </Button>
@@ -67,16 +67,16 @@ export function StudioPage() {
             ))}
           </ul>
         </section>
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold text-slate-900">Preview</h2>
-          {chosen.length === 0 ? <p className="mt-3 text-sm text-slate-500">No widgets selected. The role still sees only data its permissions allow.</p> : (
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-100">Preview</h2>
+          {chosen.length === 0 ? <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">No widgets selected. The role still sees only data its permissions allow.</p> : (
             <ol className="mt-3 space-y-2 text-sm">
               {chosen.map((code, index) => (
-                <li key={code} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                <li key={code} className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
                   <span>{studio.data?.widgets.find((widget) => widget.code === code)?.title ?? code}</span>
                   <span className="flex gap-2">
-                    <button type="button" className="text-slate-500" onClick={() => index > 0 && setWidgets([...chosen.slice(0, index - 1), chosen[index], chosen[index - 1], ...chosen.slice(index + 1)])}>Up</button>
-                    <button type="button" className="text-slate-500" onClick={() => index < chosen.length - 1 && setWidgets([...chosen.slice(0, index), chosen[index + 1], chosen[index], ...chosen.slice(index + 2)])}>Down</button>
+                    <button type="button" className="text-slate-500 dark:text-slate-400" onClick={() => index > 0 && setWidgets([...chosen.slice(0, index - 1), chosen[index], chosen[index - 1], ...chosen.slice(index + 1)])}>Up</button>
+                    <button type="button" className="text-slate-500 dark:text-slate-400" onClick={() => index < chosen.length - 1 && setWidgets([...chosen.slice(0, index), chosen[index + 1], chosen[index], ...chosen.slice(index + 2)])}>Down</button>
                   </span>
                 </li>
               ))}
@@ -85,9 +85,9 @@ export function StudioPage() {
           <Button className="mt-4" type="button" disabled={save.isPending} onClick={() => save.mutate()}>Publish</Button>
         </section>
       </div>
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="font-semibold text-slate-900">Navigation</h2>
-        <p className="mt-1 text-sm text-slate-500">Hiding an item does not grant access. The server still checks the permission and the installed module.</p>
+      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-100">Navigation</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Hiding an item does not grant access. The server still checks the permission and the installed module.</p>
         <ul className="mt-3 space-y-2 text-sm">
           {(navigation.data?.results ?? []).map((item) => (
             <li key={item.code} className="flex items-center justify-between">
@@ -100,14 +100,14 @@ export function StudioPage() {
           ))}
         </ul>
       </section>
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="font-semibold text-slate-900">Your published dashboard</h2>
-        {workspace.dashboard.widgets.length === 0 ? <p className="mt-2 text-sm text-slate-500">No published widgets for your roles yet.</p> : (
+      <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-100">Your published dashboard</h2>
+        {workspace.dashboard.widgets.length === 0 ? <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No published widgets for your roles yet.</p> : (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {workspace.dashboard.widgets.map((widget) => (
-              <article key={widget.code} className="rounded-lg border border-slate-200 p-3 text-sm">
+              <article key={widget.code} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm">
                 <h3 className="font-medium">{widget.title}</h3>
-                <pre className="mt-2 whitespace-pre-wrap text-slate-600">{JSON.stringify(widget.data, null, 2)}</pre>
+                <pre className="mt-2 whitespace-pre-wrap text-slate-600 dark:text-slate-300">{JSON.stringify(widget.data, null, 2)}</pre>
               </article>
             ))}
           </div>

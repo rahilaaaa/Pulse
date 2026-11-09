@@ -1,8 +1,8 @@
 import json
 
-import pyotp
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.authorization.models import Permission, PlatformPermissionGrant
@@ -13,18 +13,8 @@ PASSWORD = "a-long-passphrase"
 
 
 def sign_in(client, email, password):
-    """Finish password and authenticator steps for a platform operator."""
-    response = client.post("/api/v1/auth/login/", {"email": email, "password": password}, format="json")
-    if response.status_code != 200 or not response.data.get("mfa_required"):
-        return response
-    if response.data["step"] == "enroll":
-        secret = response.data["secret"]
-    else:
-        from apps.identity.mfa import decrypt_secret
-
-        secret = decrypt_secret(User.objects.get(email=email.lower()).mfa_secret)
-    code = pyotp.TOTP(secret).now()
-    return client.post("/api/v1/auth/mfa/", {"code": code}, format="json")
+    """Sign in with email and password."""
+    return client.post("/api/v1/auth/login/", {"email": email, "password": password}, format="json")
 
 
 class AuthApiTests(TestCase):
@@ -44,25 +34,9 @@ class AuthApiTests(TestCase):
         self.client.get("/api/v1/auth/csrf/")
         self.client.session.save()
         before = self.client.session.session_key
-        challenge = self.client.post(
+        response = self.client.post(
             "/api/v1/auth/login/",
             {"email": "Operator@Example.com", "password": PASSWORD},
-            format="json",
-        )
-        self.assertEqual(challenge.status_code, 200)
-        self.assertEqual(challenge.data["step"], "enroll")
-        self.assertTrue(challenge.data["secret"])
-        self.assertTrue(challenge.data["qr_svg"].startswith("<svg"))
-        self.assertEqual(self.client.get("/api/v1/auth/me/").status_code, 401)
-        self.assertNotEqual(self.client.session.session_key, before)
-
-        wrong = self.client.post("/api/v1/auth/mfa/", {"code": "000000"}, format="json")
-        self.assertEqual(wrong.status_code, 401)
-        self.assertEqual(wrong.data["error"]["code"], "not_authenticated")
-
-        response = self.client.post(
-            "/api/v1/auth/mfa/",
-            {"code": pyotp.TOTP(challenge.data["secret"]).now()},
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -70,19 +44,12 @@ class AuthApiTests(TestCase):
         self.assertEqual(response.data["platform_permissions"], ["platform.companies.view"])
         self.assertIn("sessionid", response.cookies)
         self.assertTrue(response.cookies["sessionid"]["httponly"])
-        self.assertNotIn("mfa_secret", response.data)
+        self.assertNotIn("password", response.data)
+        self.assertNotEqual(self.client.session.session_key, before)
         me = self.client.get("/api/v1/auth/me/")
         self.assertEqual(me.status_code, 200)
         self.assertEqual(me.data["id"], str(self.user.id))
         self.assertTrue(me["X-Request-Id"])
-
-        again = self.client.post(
-            "/api/v1/auth/login/",
-            {"email": self.user.email, "password": PASSWORD},
-            format="json",
-        )
-        self.assertEqual(again.data["step"], "verify")
-        self.assertNotIn("secret", again.data)
 
     def test_invalid_credentials_are_rejected_without_revealing_which_field_failed(self):
         unknown = self.client.post(
@@ -281,21 +248,81 @@ class PlatformDirectoryTests(TestCase):
         self.assertEqual(response.data["companies"]["total"], 1)
         self.assertEqual(response.data["companies"]["by_status"]["active"], 1)
         self.assertEqual(response.data["users"]["total"], 1)
-        self.assertGreaterEqual(response.data["platform_grants"], 3)
+        self.assertEqual(response.data["users"]["in_companies"], 0)
+        self.assertEqual(response.data["platform_grants"], 1)
 
-    def test_user_list_searches_accounts_without_secrets(self):
-        response = self.client.get("/api/v1/platform/users/", {"q": "asha"})
+    def test_company_detail_lists_members_for_that_company_only(self):
+        company = Company.objects.get(slug="northwind")
+        member = User.objects.create_user(email="member@example.com", password=PASSWORD, first_name="Sam")
+        CompanyMembership.objects.create(
+            company=company,
+            user=member,
+            status=MembershipStatus.ACTIVE,
+            joined_at=timezone.now(),
+        )
+        response = self.client.get(f"/api/v1/platform/companies/{company.id}/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["count"], 1)
-        row = response.data["results"][0]
-        self.assertEqual(row["email"], "operator@example.com")
-        self.assertNotIn("password", row)
-        self.assertNotIn("mfa_secret", row)
-        empty = self.client.get("/api/v1/platform/users/", {"q": "nobody"})
-        self.assertEqual(empty.data["results"], [])
+        self.assertEqual(response.data["slug"], "northwind")
+        self.assertEqual(len(response.data["members"]), 1)
+        self.assertEqual(response.data["members"][0]["email"], "member@example.com")
+        self.assertNotIn("password", response.data["members"][0])
 
     def test_sections_without_tables_return_an_empty_page(self):
         response = self.client.get("/api/v1/platform/billing/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["results"], [])
         self.assertEqual(response.data["count"], 0)
+
+    def test_company_dashboard_returns_counts_and_modules(self):
+        from apps.modules_registry.models import CompanyModuleInstallation, InstallationStatus, ModuleDefinition
+        from apps.organization.models import Person, PersonStatus
+
+        company = Company.objects.get(slug="northwind")
+        member = User.objects.create_user(email="dash-member@example.com", password=PASSWORD, first_name="Sam")
+        CompanyMembership.objects.create(
+            company=company,
+            user=member,
+            status=MembershipStatus.ACTIVE,
+            joined_at=timezone.now(),
+        )
+        Person.objects.create(
+            company=company,
+            first_name="Sam",
+            last_name="Member",
+            status=PersonStatus.ACTIVE,
+        )
+        module = ModuleDefinition.objects.filter(is_public=True).first()
+        self.assertIsNotNone(module)
+        CompanyModuleInstallation.objects.create(
+            company=company,
+            module=module,
+            status=InstallationStatus.INSTALLED,
+            installed_version=module.version,
+            installed_at=timezone.now(),
+        )
+
+        response = self.client.get(f"/api/v1/platform/companies/{company.id}/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["company"]["slug"], "northwind")
+        self.assertEqual(response.data["people"]["memberships_active"], 1)
+        self.assertEqual(response.data["people"]["people_active"], 1)
+        self.assertEqual(response.data["installed_modules_count"], 1)
+        self.assertEqual(len(response.data["modules"]), 1)
+        self.assertEqual(response.data["modules"][0]["slug"], module.slug)
+        self.assertEqual(response.data["modules"][0]["status"], InstallationStatus.INSTALLED)
+        self.assertIn("subscription", response.data)
+        self.assertIn("organization", response.data)
+        self.assertNotIn("activity", response.data)
+
+    def test_company_dashboard_requires_platform_grant(self):
+        company = Company.objects.get(slug="northwind")
+        outsider = User.objects.create_user(email="outsider@example.com", password=PASSWORD, first_name="Out")
+        client = APIClient()
+        sign_in(client, outsider.email, PASSWORD)
+        response = client.get(f"/api/v1/platform/companies/{company.id}/dashboard/")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["error"]["code"], "permission_denied")
+
+    def test_company_dashboard_unknown_company_returns_404(self):
+        response = self.client.get("/api/v1/platform/companies/00000000-0000-0000-0000-000000000099/dashboard/")
+        self.assertEqual(response.status_code, 404)

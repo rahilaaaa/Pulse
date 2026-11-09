@@ -1,5 +1,6 @@
 """Shared Django settings. Secrets come from the environment."""
 
+from django.conf.global_settings import SESSION_SAVE_EVERY_REQUEST
 import os
 from pathlib import Path
 
@@ -42,8 +43,12 @@ INSTALLED_APPS = [
     "apps.audit",
     "apps.billing",
     "apps.organization",
+    "apps.parties",
     "apps.modules_registry",
     "apps.hrms",
+    "apps.projects",
+    "apps.crm",
+    "apps.commerce",
     "apps.dashboards",
     "apps.platform_admin",
 ]
@@ -112,6 +117,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = True
+# SESSION_COOKIE_AGE = 1 * 60
+# SESSION_SAVE_EVERY_REQUEST=True
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = True

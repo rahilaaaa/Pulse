@@ -1,12 +1,12 @@
 # 07 — Modular Plugin Architecture
 
-Status: approved planning baseline. "Plugin" here means a trusted Django app in this repository, registered with Pulse. It does not mean customer-uploaded code or a separately deployed service.
+Status: planning baseline with Phase 0 implementation notes. "Plugin" here means a trusted Django app in this repository, registered with Pulse. It does not mean customer-uploaded code or a separately deployed service.
 
 ## 1. Decision
 
 Optional products are normal Django applications shipped in the same release as the core. `INSTALLED_APPS` lists them. Their migrations run at deploy time for the whole database. A company installation is a row in `company_module_installations`, not a schema change and not an import of untrusted Python.
 
-HRMS Leave is the first optional module. CRM and Commerce may later follow the same contract. They have no MVP tables and no MVP routes.
+HRMS Leave is the first optional module. CRM and Commerce may later follow the same contract. They have no product tables and no installable routes yet. **ADR-021:** Project Management and CRM implementation wait on the tenant-integrity gate.
 
 This avoids a plugin marketplace, remote code execution, and per-tenant migration graphs. The cost is that a module's schema exists before a company installs it. Empty tables are acceptable. Company data appears only after authorized use.
 
@@ -16,27 +16,29 @@ Authentication, sessions, companies, memberships, people, departments, roles, pe
 
 People and departments remain core because every company needs an organization even when HRMS is not installed.
 
+**As built:** in-app notifications live under the `tenants` Django app (models `Announcement`, `CompanyNotification`, `NotificationPreference`), not a separate `apps/notifications` package.
+
 ## 3. Module contract
 
-Each trusted module exposes one manifest. The manifest is code and is mirrored into `module_definitions` by a seed command.
+Each trusted module exposes one manifest. The **target** contract below is mirrored into `module_definitions` from code. **As built:** `backend/apps/modules_registry/manifests.py` stores a slim subset (slug, labels, version, `django_app_label`, flags). Richer fields remain Planned unless noted.
 
-| Field | Meaning |
-| --- | --- |
-| `slug` | Stable id, primary key of `module_definitions`. HRMS uses `hrms`. |
-| `display_name` | Catalog label. |
-| `version` | Version deployed in this release, stored on the installation when it succeeds. |
-| `min_platform_version` | Oldest Pulse release that can load this module. |
-| `django_app_label` | App that owns models and migrations. |
-| `dependencies` | Other slugs that must already be `installed`. HRMS has none. |
-| `permissions` | Company-scope codes this module adds, such as `hrms.leave.view`. |
-| `api_mount` | URL prefix under `/api/v1/companies/{company_id}/`. |
-| `frontend` | Route and nav manifest described in [02-project-structure.md](02-project-structure.md). |
-| `widgets` | Widget definition codes, each with `required_permission` and `config_schema`. |
-| `config_schema` | JSON Schema for `company_module_installations.config`. |
-| `entitlement` | How a company becomes eligible: included slug, or paid `subscription_items` row. |
-| `on_install` | Idempotent function that writes default company configuration. It does not grant roles. |
-| `on_upgrade` | Idempotent data transform from the previously installed version to the manifest version. |
-| `on_uninstall` | Marks the module uninstalled. Must not drop tables or delete business rows. |
+| Field | Meaning | As built |
+| --- | --- | --- |
+| `slug` | Stable id, primary key of `module_definitions`. HRMS uses `hrms`. | Implemented |
+| `display_name` | Catalog label. | Implemented |
+| `version` | Version deployed in this release, stored on the installation when it succeeds. | Implemented |
+| `min_platform_version` | Oldest Pulse release that can load this module. | Column exists; install compatibility refusal not fully verified |
+| `django_app_label` | App that owns models and migrations. | Implemented (empty string on placeholders) |
+| `dependencies` | Other slugs that must already be `installed`. HRMS has none. | Model + install check Implemented; no seeded deps |
+| `permissions` | Company-scope codes this module adds, such as `hrms.leave.view`. | Seeded via authorization catalog, not embeded in manifest dict |
+| `api_mount` | URL prefix under `/api/v1/companies/{company_id}/`. | Planned as manifest field; routes wired in `company_urls.py` |
+| `frontend` | Route and nav manifest described in [02-project-structure.md](02-project-structure.md). | Planned as formal export; nav uses `NAV_CATALOG` + `navigation_for` |
+| `widgets` | Widget definition codes, each with `required_permission` and `config_schema`. | Seeded in dashboards, not module manifest |
+| `config_schema` | JSON Schema for `company_module_installations.config`. | Column exists; empty for HRMS |
+| `entitlement` | How a company becomes eligible: included slug, or paid `subscription_items` row. | `included_module_slugs` on plan Implemented |
+| `on_install` | Idempotent function that writes default company configuration. It does not grant roles. | Implemented for `hrms` |
+| `on_upgrade` | Idempotent data transform from the previously installed version to the manifest version. | Planned / Missing service |
+| `on_uninstall` | Marks the module uninstalled. Must not drop tables or delete business rows. | Planned / Missing service (permission code seeded) |
 
 Permission rows are seeded into `permissions` with `module_slug = hrms`. Role templates that should have those codes are updated in the same seed. Existing companies receive new codes only through an explicit template-sync or by an administrator editing roles. Install does not perform that grant.
 
@@ -72,9 +74,9 @@ sequenceDiagram
 
 The advisory lock and the unique `(company_id, module_slug)` pair stop two installs from interleaving. The service updates status in the same transaction as `on_install`. If `on_install` raises, the transaction rolls back and a new transaction records `failed` and `last_error`.
 
-Uninstall sets `uninstalled` and `uninstalled_at`. Leave policies and leave requests stay. Subsequent HRMS routes return `404` so an uninstalled module is not enumerable by people who never had it. Platform operators can still see the installation row.
+Uninstall **should** set `uninstalled` and `uninstalled_at`. Leave policies and leave requests stay. Subsequent HRMS routes return `404` so an uninstalled module is not enumerable by people who never had it. Platform operators can still see the installation row. (**As built:** status enum supports uninstall; public uninstall API/service Missing. Install gate already returns 404 when not installed.)
 
-Upgrade compares `installed_version` with the running manifest. The MVP ships one version, so upgrade is the state machine and the hook, exercised by a test double, not a second HRMS release.
+Upgrade compares `installed_version` with the running manifest. The first HRMS release ships one version, so upgrade is the state machine and the hook, exercised by a test double, not a second HRMS release. (**As built:** upgrade hook Missing.)
 
 ## 6. How Django stays manageable
 
@@ -108,6 +110,10 @@ No accrual engine, holiday calendar, or balance ledger is included. Those can be
 
 ## 9. Future modules
 
-CRM and Commerce should add their own apps, manifests, permissions, prices, and tables when they are actually built. They should store `company_id` and composite foreign keys the same way. They should bill as subscription items on the company's current interval unless a later decision changes that rule.
+CRM, Projects, Commerce, and other business modules should add their own apps, manifests, permissions, prices, and tables when they are actually built. They should store `company_id` and pursue composite foreign keys the same way (ADR-002 / ADR-021). They should bill as subscription items on the company's current interval unless a later decision changes that rule.
 
 Until then, no placeholder CRM or Commerce tables are created.
+
+**As built catalog** (`modules_registry/manifests.py`): non-installable public stubs for `crm`, `finance`, `inventory`, `projects`, `helpdesk`. Installable: `hrms` only. **Commerce** is not present in the catalog. Shared Party (ADR-020) and LegalEntity/Employment (ADR-019) are approved directions without models yet.
+
+See [14-implementation-status.md](14-implementation-status.md).

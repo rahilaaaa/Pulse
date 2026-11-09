@@ -1,8 +1,10 @@
 # 02 — Project Structure
 
-Status: approved planning baseline. Directories below are the implementation target. This planning phase creates only `README.md` and `docs/architecture/`.
+Status: planning baseline with Phase 0 layout notes. The repository **exists**. The tree below remains the **target** layout; several packages and frontend folders differ as built. See [14-implementation-status.md](14-implementation-status.md).
 
-## 1. Repository layout to create when implementation starts
+## 1. Repository layout (target)
+
+Target layout (not every path exists):
 
 ```text
 Pulse/
@@ -65,7 +67,17 @@ Pulse/
       types/
 ```
 
-`billing_razorpay` is the only package allowed to import the Razorpay client. `billing` defines the provider interface and domain models.
+`billing_razorpay` is the only package allowed to import the Razorpay client. `billing` defines the provider interface and domain models. (**As built:** `billing_razorpay` package Missing.)
+
+### 1.1 As-built drift (high signal)
+
+| Target | As built |
+| --- | --- |
+| `apps/notifications` | Notification models and APIs under `apps/tenants` |
+| `apps/billing_razorpay` | Absent |
+| `frontend/.../features/people|roles|modules|billing|dashboards` | Mostly folded into `features/workspace/` plus `features/platform/` |
+| `frontend/src/modules/hrms` | Leave UI under workspace routes (`LeavePage`) rather than a separate modules package |
+| `common/tenancy` composite helpers | Partial / not the full ADR-002 composite FK layer |
 
 ## 2. Backend responsibilities
 
@@ -73,19 +85,19 @@ Pulse/
 | --- | --- |
 | `config` | Settings, installed apps, root URL routing, middleware order. |
 | `common/api` | Error body, pagination, request id, idempotency helper. |
-| `common/tenancy` | Current company context, tenant queryset, composite-key helpers. |
+| `common/tenancy` | Current company context, tenant queryset, composite-key helpers. (**Target;** composite helpers Incomplete.) |
 | `common/permissions` | Permission class that checks membership, access mode, and permission code. |
 | `common/money` | Paise integers, currency code, rounding helpers. No float money. |
 | `apps/identity` | Custom user model, verification, password reset, session login. |
-| `apps/tenants` | Companies, memberships, invitations, onboarding, company settings. |
+| `apps/tenants` | Companies, memberships, invitations, onboarding, company settings, **and** in-app notifications / custom fields & entities (as built). |
 | `apps/organization` | Departments and people. |
 | `apps/authorization` | Permission catalog, templates, company roles, platform grants. |
-| `apps/billing` | Plans, subscriptions, invoices, tax snapshots, provider interface. |
-| `apps/billing_razorpay` | Checkout, webhook verification, status mapping, reconciliation calls. |
-| `apps/modules_registry` | Catalog, dependency checks, installation state machine. |
-| `apps/dashboards` | Versions, assignments, widget registry, data routes. |
+| `apps/billing` | Plans, subscriptions, invoices, tax snapshots, provider interface. (**Partial:** trial/plan without full invoice/Razorpay stack.) |
+| `apps/billing_razorpay` | Checkout, webhook verification, status mapping, reconciliation calls. (**Missing.**) |
+| `apps/modules_registry` | Catalog, dependency checks, installation state machine. (**Partial:** install Implemented; uninstall/upgrade Missing.) |
+| `apps/dashboards` | Versions, assignments, widget registry, data routes, navigation_for. |
 | `apps/hrms` | Leave policies and leave requests. |
-| `apps/notifications` | In-app notifications. |
+| `apps/notifications` | In-app notifications. (**Target package name; see tenants as built.**) |
 | `apps/audit` | Append-only audit writer and company/platform read APIs. |
 | `apps/platform_admin` | Operator query services and `/api/v1/platform` views. |
 
@@ -107,14 +119,14 @@ The SPA presents and orchestrates. It does not:
 | `features/public` | Landing page. |
 | `features/auth` | Register, login, verify email, password reset. |
 | `features/onboarding` | Company, billing profile, plan, checkout status, resume. |
-| `features/workspace` | Shell, company switcher, overview. |
-| `features/people` | Departments, people, invitations. |
-| `features/roles` | Roles and permission assignment. |
-| `features/modules` | Catalog and installation status. |
-| `features/billing` | Subscription, interval, invoices, payment status. |
-| `features/dashboards` | Studio, preview, employee home. |
+| `features/workspace` | Shell, company switcher, overview, and (**as built**) people, org, roles, modules, billing, studio, leave, custom entities, audit, notifications pages. |
+| `features/people` | Departments, people, invitations. (**Target folder; as built under workspace.**) |
+| `features/roles` | Roles and permission assignment. (**Target; as built under workspace.**) |
+| `features/modules` | Catalog and installation status. (**Target; as built under workspace.**) |
+| `features/billing` | Subscription, interval, invoices, payment status. (**Target; as built under workspace / partial.**) |
+| `features/dashboards` | Studio, preview, employee home. (**Target; studio under workspace.**) |
 | `features/platform` | Operator screens. |
-| `modules/hrms` | HRMS routes registered through the module manifest. |
+| `modules/hrms` | HRMS routes registered through the module manifest. (**Target; as built Leave page under workspace.**) |
 | `shared/api` | Typed client generated from OpenAPI, plus the request-id header. |
 | `shared/ui` | Design-system components. |
 | `shared/forms` | React Hook Form and Zod field wiring. |
@@ -190,12 +202,14 @@ Every tenant-owned feature adds an automated test that a membership in company A
 
 | Concern | Canonical file |
 | --- | --- |
-| Tables and columns | [schema.dbml](schema.dbml) |
+| What exists in code vs planned | [14-implementation-status.md](14-implementation-status.md) |
+| Intended target tables (proposals) | [schema.dbml](schema.dbml) |
 | Column narrative, retention, postponed tables | [03-database-design.md](03-database-design.md) |
 | HTTP contract | [04-api-design.md](04-api-design.md) |
 | Permission codes and role templates | [05-identity-and-authorization.md](05-identity-and-authorization.md) |
 | Threat model and RLS | [06-multi-tenancy-and-security.md](06-multi-tenancy-and-security.md) |
 | Money, tax, MRR, Razorpay boundary | [08-subscriptions-and-billing.md](08-subscriptions-and-billing.md) |
 | Decisions and unresolved items | [12-architecture-decisions.md](12-architecture-decisions.md) |
+| Dynamic custom fields and entities | [13-dynamic-data-model.md](13-dynamic-data-model.md) |
 
-If two documents disagree, `schema.dbml` wins for columns and [12-architecture-decisions.md](12-architecture-decisions.md) wins for an explicit decision.
+If documents disagree: [14-implementation-status.md](14-implementation-status.md) wins for **repository reality**; [12-architecture-decisions.md](12-architecture-decisions.md) wins for an **explicit decision**; [schema.dbml](schema.dbml) is the **intended target-design sketch** and is not automatic implementation approval.

@@ -15,8 +15,8 @@ export function RecordsPage({ title, path }: { title: string; path: string }) {
     <section className="space-y-5">
       <Breadcrumbs items={["Platform", title]} />
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-        <p className="mt-1 text-sm text-slate-600">This list is loaded from the platform API. It does not include sample rows.</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">This list is loaded from the platform API. It does not include sample rows.</p>
       </div>
       {records.isLoading ? <LoadingState label={`Loading ${title.toLowerCase()}`} /> : null}
       {records.error ? (

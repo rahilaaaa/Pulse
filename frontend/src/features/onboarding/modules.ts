@@ -28,16 +28,30 @@ export type CatalogModule = {
   installable: boolean;
 };
 
-export const MODULE_CATALOG: CatalogModule[] = [
-  {
-    slug: "hrms",
+export type ApiOnboardingModule = {
+  slug: string;
+  name?: string;
+  display_name?: string;
+  category?: string;
+  description?: string;
+  summary?: string;
+  detail?: string;
+  pitch?: string;
+  version?: string;
+  installation_available?: boolean;
+  installable?: boolean;
+  includes?: string[];
+  features_preview?: string[];
+};
+
+export const MODULE_METADATA_BY_SLUG: Record<string, Partial<CatalogModule>> = {
+  hrms: {
     name: "HRMS",
     category: "Human Resource Management",
     summary: "Manage workforce profiles, attendance, leave, payroll, compensation, and performance from your Pulse workspace.",
     detail: "Manage workforce profiles, attendance, leave, payroll, compensation, and performance from your Pulse workspace.",
     pitch: "Add workforce and HR capabilities to your Pulse company workspace.",
-    version: "2.4.0",
-    installable: true,
+    version: "2.5.0",
     includes: ["Workforce Management", "Leave", "Compensation", "HR Reports", "Attendance", "Payroll", "Performance"],
     groups: [
       { title: "Workforce", items: ["HR profiles", "Workforce directory"] },
@@ -79,15 +93,13 @@ export const MODULE_CATALOG: CatalogModule[] = [
       "Preparing HR configuration",
     ],
   },
-  {
-    slug: "crm",
+  crm: {
     name: "CRM",
     category: "Customer Relationship Management",
     summary: "Track leads, manage customers, and follow the sales pipeline.",
     detail: "Track leads, customers, and the sales pipeline from your Pulse workspace.",
     pitch: "Add customer and pipeline capabilities to your Pulse company workspace.",
     version: "1.0.0",
-    installable: false,
     includes: ["Leads", "Pipeline", "Follow-ups", "Customer history", "Sales reports"],
     groups: [
       { title: "Leads", items: ["Lead records", "Lead sources"] },
@@ -108,15 +120,13 @@ export const MODULE_CATALOG: CatalogModule[] = [
     configuration: ["Pipeline stages", "Lead sources", "Assign CRM permissions to roles"],
     installSteps: ["Installing module", "Preparing customer records", "Preparing the pipeline", "Preparing follow-ups", "Preparing sales reports"],
   },
-  {
-    slug: "projects",
+  projects: {
     name: "Project & Task Management",
     category: "Plan, track and deliver work",
     summary: "Create projects, assign work, and follow deadlines with the team.",
     detail: "Plan projects, assign work, and follow deadlines from your Pulse workspace.",
     pitch: "Add project and task capabilities to your Pulse company workspace.",
     version: "1.0.0",
-    installable: false,
     includes: ["Projects", "Tasks", "Assignments", "Deadlines", "Progress reports"],
     groups: [
       { title: "Projects", items: ["Project records", "Project members"] },
@@ -135,93 +145,71 @@ export const MODULE_CATALOG: CatalogModule[] = [
     configuration: ["Project statuses", "Task priorities", "Assign project permissions to roles"],
     installSteps: ["Installing module", "Preparing projects", "Preparing tasks", "Preparing assignments", "Preparing progress reports"],
   },
-  {
-    slug: "helpdesk",
-    name: "Help Desk & Support",
-    category: "Customer and internal requests",
-    summary: "Create tickets, track status, and keep a history of support conversations.",
-    detail: "Create tickets, track status, and keep support history in your Pulse workspace.",
-    pitch: "Add support and ticket capabilities to your Pulse company workspace.",
+  commerce: {
+    name: "Commerce & POS",
+    category: "Commerce & Sales",
+    summary: "Manage product catalogs, inventory pricing, orders, and point-of-sale operations.",
+    detail: "End-to-end commercial operations: product listings, price books, orders, invoices, and POS checkout.",
+    pitch: "Sell products and process transactions directly in Pulse ERP.",
     version: "1.0.0",
-    installable: false,
-    includes: ["Tickets", "Priorities", "Escalations", "Conversation history", "Support reports"],
+    includes: ["Product Catalog", "Price Books", "Orders", "POS Registers", "Invoices"],
     groups: [
-      { title: "Tickets", items: ["Ticket records", "Assignment"] },
-      { title: "Status", items: ["Priorities", "Status tracking"] },
-      { title: "Escalations", items: ["Escalation rules", "Notifications"] },
-      { title: "Reporting", items: ["Support reports"] },
+      { title: "Catalog", items: ["Product listings", "Categories", "Variants"] },
+      { title: "Sales", items: ["Orders", "Customer accounts", "Price books"] },
+      { title: "Checkout", items: ["POS terminal", "Payment recording"] },
     ],
-    permissionSummary: "Adds a support permission set. Only full-access roles get it automatically.",
-    permissionNote: "Help Desk adds its own permission set — Tickets, Escalations, and Reports — that you grant to company roles.",
+    permissionSummary: "Adds commerce permissions. Granted to commercial staff.",
+    permissionNote: "Adds permissions for Products, Orders, and Checkout.",
     permissions: [
-      { name: "Help Desk", actions: "view, manage" },
-      { name: "Tickets", actions: "view, create, manage, assign" },
-      { name: "Escalations", actions: "view, manage" },
-      { name: "Support reports", actions: "view" },
-    ],
-    dataAreas: ["Stores tickets for this company.", "Writes notifications and audit log entries when a ticket changes."],
-    configuration: ["Ticket priorities and statuses", "Escalation rules", "Assign support permissions to roles"],
-    installSteps: ["Installing module", "Preparing tickets", "Preparing priorities", "Preparing escalations", "Preparing support reports"],
-  },
-  {
-    slug: "inventory",
-    name: "Inventory & Asset Management",
-    category: "Products, stock and assets",
-    summary: "Track products, stock movement, suppliers, and assigned assets.",
-    detail: "Track products, stock, suppliers, and assigned assets from your Pulse workspace.",
-    pitch: "Add inventory and asset capabilities to your Pulse company workspace.",
-    version: "1.0.0",
-    installable: false,
-    includes: ["Products", "Stock", "Suppliers", "Assets", "Inventory reports"],
-    groups: [
-      { title: "Products", items: ["Product records", "Stock levels"] },
-      { title: "Movement", items: ["Stock movements", "Low-stock alerts"] },
-      { title: "Suppliers", items: ["Supplier records", "Purchase orders"] },
-      { title: "Assets", items: ["Asset assignment", "Inventory reports"] },
-    ],
-    permissionSummary: "Adds an inventory permission set. Only full-access roles get it automatically.",
-    permissionNote: "Inventory adds its own permission set — Products, Stock, Suppliers, Assets, and Reports — that you grant to company roles.",
-    permissions: [
-      { name: "Inventory", actions: "view, manage" },
+      { name: "Commerce", actions: "view, manage" },
       { name: "Products", actions: "view, create, manage" },
-      { name: "Stock", actions: "view, adjust" },
-      { name: "Assets", actions: "view, assign" },
-      { name: "Inventory reports", actions: "view" },
+      { name: "Orders", actions: "view, create, manage" },
     ],
-    dataAreas: ["Stores products, stock, and assets for this company.", "Writes stock changes to the shared audit log."],
-    configuration: ["Stock locations", "Low-stock thresholds", "Assign inventory permissions to roles"],
-    installSteps: ["Installing module", "Preparing products", "Preparing stock", "Preparing suppliers", "Preparing assets"],
+    dataAreas: ["Stores commercial products and orders for this company."],
+    configuration: ["Product categories", "Payment methods", "Tax rules"],
+    installSteps: ["Installing module", "Preparing product catalog", "Preparing order workflows"],
   },
-  {
-    slug: "finance",
-    name: "Finance & Accounting",
-    category: "Invoices, expenses and reports",
-    summary: "Record invoices, expenses, and the summaries the company needs for its books.",
-    detail: "Record invoices, expenses, and financial summaries from your Pulse workspace.",
-    pitch: "Add finance and accounting capabilities to your Pulse company workspace.",
-    version: "1.0.0",
-    installable: false,
-    includes: ["Invoices", "Expenses", "Summaries", "Tax details", "Bank reconciliation"],
-    groups: [
-      { title: "Invoices", items: ["Invoices", "Payments"] },
-      { title: "Expenses", items: ["Expense records", "Expense categories"] },
-      { title: "Books", items: ["Financial summaries", "Tax details where applicable"] },
-      { title: "Banking", items: ["Bank reconciliation"] },
-    ],
-    permissionSummary: "Adds a finance permission set. Only full-access roles get it automatically.",
-    permissionNote: "Finance adds its own permission set — Invoices, Expenses, and Reports — that you grant to company roles.",
-    permissions: [
-      { name: "Finance", actions: "view, manage" },
-      { name: "Invoices", actions: "view, create, manage" },
-      { name: "Expenses", actions: "view, create, manage" },
-      { name: "Financial reports", actions: "view" },
-    ],
-    dataAreas: ["Stores invoices and expenses for this company.", "Writes financial changes to the shared audit log."],
-    configuration: ["Invoice numbering", "Expense categories", "Assign finance permissions to roles"],
-    installSteps: ["Installing module", "Preparing invoices", "Preparing expenses", "Preparing summaries", "Preparing reconciliation"],
-  },
-];
+};
 
-export function modulesBySlug(slugs: string[]) {
-  return MODULE_CATALOG.filter((module) => slugs.includes(module.slug));
+export function buildCatalogModule(apiItem: ApiOnboardingModule): CatalogModule {
+  const meta = MODULE_METADATA_BY_SLUG[apiItem.slug] || {};
+  const name = apiItem.name || apiItem.display_name || meta.name || apiItem.slug.toUpperCase();
+  const includes =
+    apiItem.includes && apiItem.includes.length > 0
+      ? apiItem.includes
+      : meta.includes || [name];
+  const summary = apiItem.summary || apiItem.description || meta.summary || "";
+  const detail = apiItem.detail || apiItem.description || meta.detail || summary;
+  const pitch = apiItem.pitch || meta.pitch || detail;
+
+  return {
+    slug: apiItem.slug,
+    name,
+    category: apiItem.category || meta.category || "Operations",
+    summary,
+    detail,
+    pitch,
+    version: apiItem.version || meta.version || "1.0.0",
+    includes,
+    groups: meta.groups || [{ title: "Features", items: includes }],
+    permissionSummary:
+      meta.permissionSummary || `Adds permissions for ${name}. Only full-access roles get them automatically.`,
+    permissionNote:
+      meta.permissionNote || `Installing requires permission to install modules. Adds permissions for ${name}.`,
+    permissions: meta.permissions || [{ name, actions: "view, manage" }],
+    dataAreas: meta.dataAreas || [`Stores ${name} data for this company.`],
+    configuration: meta.configuration || [`Assign ${name} permissions to roles`],
+    installSteps: meta.installSteps || ["Installing module", `Preparing ${name} capabilities`],
+    installable: apiItem.installation_available ?? apiItem.installable ?? true,
+  };
 }
+
+export function resolveCatalogModules(apiList: ApiOnboardingModule[] = []): CatalogModule[] {
+  return apiList.map(buildCatalogModule);
+}
+
+export function modulesBySlug(modules: CatalogModule[], slugs: string[]) {
+  return modules.filter((module) => slugs.includes(module.slug));
+}
+
+export const MODULE_CATALOG: CatalogModule[] = [];

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as datetime_timezone
 
 from django.db import transaction
 from django.utils import timezone
@@ -7,6 +7,7 @@ from apps.audit.models import AuditLog
 from apps.billing.models import (
     BillingInterval,
     BillingPlan,
+    BillingPlanEntitlement,
     BillingPlanPrice,
     Subscription,
     SubscriptionItem,
@@ -19,9 +20,54 @@ from apps.tenants.services import _ip, _owned_onboarding, _request_id
 from common.api.errors import conflict, validation_error
 
 TRIAL_PROVIDER = "pulse"
+GROWTH_PRICE_FROM = datetime(2026, 10, 17, tzinfo=datetime_timezone.utc)
+
+
+def ensure_growth_plan() -> BillingPlan:
+    """Re-seed the public Growth trial plan if flush/migrate left the catalog empty."""
+    plan, _created = BillingPlan.objects.get_or_create(
+        code="growth",
+        defaults={
+            "name": "Growth",
+            "description": "Company plan with a 14-day trial. Payment is not collected when the trial starts.",
+            "is_active": True,
+            "is_public": True,
+            "trial_days": 14,
+        },
+    )
+    changed = False
+    if not plan.is_active or not plan.is_public or plan.trial_days < 1:
+        plan.is_active = True
+        plan.is_public = True
+        plan.trial_days = max(plan.trial_days, 14)
+        plan.name = plan.name or "Growth"
+        changed = True
+    if changed:
+        plan.save(update_fields=["is_active", "is_public", "trial_days", "name", "updated_at"])
+
+    for interval, amount in (("month", 249900), ("year", 2499900)):
+        BillingPlanPrice.objects.get_or_create(
+            plan=plan,
+            billing_interval=interval,
+            currency="INR",
+            effective_from=GROWTH_PRICE_FROM,
+            defaults={"amount_minor": amount, "is_active": True},
+        )
+    for key, value in (
+        ("max_people", 50),
+        ("dashboards_enabled", True),
+        ("included_module_slugs", ["hrms", "projects", "crm", "commerce"]),
+    ):
+        BillingPlanEntitlement.objects.update_or_create(
+            plan=plan,
+            entitlement_key=key,
+            defaults={"entitlement_value": value},
+        )
+    return plan
 
 
 def list_public_plans() -> dict:
+    ensure_growth_plan()
     now = timezone.now()
     plans = BillingPlan.objects.filter(is_active=True, is_public=True).order_by("code")
     results = []
@@ -45,9 +91,15 @@ def list_public_plans() -> dict:
 
 
 def select_plan(*, user, payload: dict, request) -> dict:
+    ensure_growth_plan()
     company, state = _owned_onboarding(user)
     if state.billing_profile_completed_at is None:
         raise conflict("Complete the billing profile before choosing a plan.")
+    module_slugs = payload.get("module_slugs")
+    if module_slugs and isinstance(module_slugs, list):
+        from apps.modules_registry.services import validate_onboarding_modules
+
+        validate_onboarding_modules(module_slugs)
     plan_code, interval = _selection(payload)
     now = timezone.now()
     price = (

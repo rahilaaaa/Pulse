@@ -7,7 +7,7 @@ from apps.identity.registration_views import (
     PasswordResetRequestView,
     RegisterView,
 )
-from apps.identity.views import CsrfView, LoginView, LogoutView, MeView, MfaView
+from apps.identity.views import CsrfView, LoginView, LogoutView, MeView
 from apps.platform_admin.health import HealthView
 
 
@@ -31,7 +31,6 @@ urlpatterns = [
         session_view(EmailVerificationConfirmView),
         name="auth-email-verification-confirm",
     ),
-    path("auth/mfa/", session_view(MfaView), name="auth-mfa"),
     path("auth/logout/", session_view(LogoutView), name="auth-logout"),
     path("auth/me/", MeView.as_view(), name="auth-me"),
 ]

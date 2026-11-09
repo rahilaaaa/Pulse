@@ -10,7 +10,7 @@ export function Pagination({
   onPageChange: (page: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
+    <div className="flex items-center justify-between gap-3 text-sm text-slate-600 dark:text-slate-300">
       <span>
         Page {page}
         {pageCount > 0 ? ` of ${pageCount}` : ""}

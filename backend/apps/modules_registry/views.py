@@ -3,7 +3,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.authorization.company import require_permission
-from apps.modules_registry.services import catalog_for_company, install_module
+from apps.modules_registry.services import (
+    catalog_for_company,
+    install_module,
+    module_detail_for_company,
+    uninstall_module,
+)
 
 
 class ModuleCatalogView(APIView):
@@ -14,9 +19,43 @@ class ModuleCatalogView(APIView):
         return Response(catalog_for_company(membership.company))
 
 
+class ModuleDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id, slug):
+        membership = require_permission(request.user, company_id, "modules.view")
+        return Response(module_detail_for_company(membership.company, slug, user=request.user))
+
+
 class ModuleInstallView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, company_id, slug):
         membership = require_permission(request.user, company_id, "modules.install")
-        return Response(install_module(user=request.user, company=membership.company, slug=slug, request=request, enforce_permission=False))
+        config = request.data.get("config") if isinstance(request.data, dict) else None
+        return Response(
+            install_module(
+                user=request.user,
+                company=membership.company,
+                slug=slug,
+                request=request,
+                config=config,
+                enforce_permission=False,
+            )
+        )
+
+
+class ModuleUninstallView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id, slug):
+        membership = require_permission(request.user, company_id, "modules.uninstall")
+        return Response(
+            uninstall_module(
+                user=request.user,
+                company=membership.company,
+                slug=slug,
+                request=request,
+                enforce_permission=False,
+            )
+        )

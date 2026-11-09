@@ -12,7 +12,7 @@ from apps.authorization.models import CompanyRole, CompanyRoleNavigation, Member
 from apps.billing.models import BillingPlan, BillingPlanPrice, Subscription, SubscriptionStatus
 from apps.dashboards.services import navigation_for
 from apps.identity.models import User
-from apps.organization.models import Department, Person
+from apps.organization.models import Department, OrganizationUnitType, Person
 from apps.tenants.models import Company, CompanyMembership, CompanyStatus, MembershipStatus
 
 PASSWORD = "a-long-passphrase"
@@ -35,6 +35,43 @@ class OrganizationHierarchyTests(TestCase):
         self.assertFalse(AuditLog.objects.filter(action__startswith="organization_unit").exists())
         allowed = self._client(self.viewer).get(self._units_url())
         self.assertEqual(allowed.status_code, 200)
+
+    def test_default_unit_types_are_seeded_when_missing(self):
+        self.assertFalse(OrganizationUnitType.objects.filter(company=self.company).exists())
+        listed = self._client(self.owner).get(self._units_url())
+        self.assertEqual(listed.status_code, 200)
+        keys = {row["key"] for row in listed.data["types"]}
+        self.assertEqual(keys, {"division", "department", "team"})
+        again = self._client(self.owner).get(self._units_url())
+        self.assertEqual(len(again.data["types"]), 3)
+        self.assertEqual(OrganizationUnitType.objects.filter(company=self.company).count(), 3)
+
+    def test_units_are_deactivated_instead_of_hard_deleted(self):
+        client = self._client(self.owner)
+        parent = client.post(self._units_url(), {"name": "Operations", "key": "operations"}, format="json")
+        self.assertEqual(parent.status_code, 201, parent.data)
+        child = client.post(
+            self._units_url(),
+            {"name": "Support", "key": "support", "parent_id": parent.data["id"]},
+            format="json",
+        )
+        self.assertEqual(child.status_code, 201, child.data)
+        Person.objects.create(
+            company=self.company,
+            first_name="Pat",
+            last_name="Lee",
+            department_id=child.data["id"],
+        )
+        deactivated_child = client.delete(self._unit_url(child.data["id"]))
+        self.assertEqual(deactivated_child.status_code, 200, deactivated_child.data)
+        self.assertEqual(deactivated_child.data["status"], "inactive")
+        self.assertTrue(Department.objects.filter(pk=child.data["id"], status="inactive").exists())
+        self.assertEqual(AuditLog.objects.filter(action="organization_unit.deactivated").count(), 1)
+
+        deactivated_parent = client.delete(self._unit_url(parent.data["id"]))
+        self.assertEqual(deactivated_parent.status_code, 200, deactivated_parent.data)
+        self.assertEqual(deactivated_parent.data["status"], "inactive")
+        self.assertTrue(Department.objects.filter(pk=parent.data["id"], status="inactive").exists())
 
     def test_duplicate_key_and_failed_request_leave_no_audit(self):
         client = self._client(self.owner)
@@ -169,12 +206,167 @@ class OrganizationHierarchyTests(TestCase):
         denied = self._client(self.employee).post(self._people_url(), {"name": "Nope"}, format="json")
         self.assertEqual(denied.status_code, 403)
 
+    def test_people_reject_duplicate_work_email(self):
+        client = self._client(self.owner)
+        first = client.post(
+            self._people_url(),
+            {"name": "Pat Lee", "work_email": "pat@example.com", "job_title": "Analyst"},
+            format="json",
+        )
+        self.assertEqual(first.status_code, 201, first.data)
+        duplicate = client.post(
+            self._people_url(),
+            {"name": "Other Pat", "work_email": "Pat@Example.com", "job_title": "Lead"},
+            format="json",
+        )
+        self.assertEqual(duplicate.status_code, 409, duplicate.data)
+        self.assertEqual(Person.objects.filter(company=self.company, work_email="pat@example.com").count(), 1)
+
+    def test_people_persist_custom_data(self):
+        client = self._client(self.owner)
+        fields_url = f"/api/v1/companies/{self.company.id}/custom-fields/"
+        field = client.post(
+            fields_url,
+            {
+                "entity": "person",
+                "name": "Employee Code",
+                "field_type": "text",
+                "required": True,
+            },
+            format="json",
+        )
+        self.assertEqual(field.status_code, 201, field.data)
+        created = client.post(
+            self._people_url(),
+            {
+                "name": "Pat Lee",
+                "work_email": "pat-code@example.com",
+                "job_title": "Analyst",
+                "custom_data": {"employee-code": "E-100"},
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["custom_data"]["employee-code"], "E-100")
+        person = Person.objects.get(pk=created.data["person_id"])
+        self.assertEqual(person.custom_data["employee-code"], "E-100")
+        missing = client.post(
+            self._people_url(),
+            {
+                "name": "Sam Ray",
+                "work_email": "sam-code@example.com",
+                "job_title": "Analyst",
+                "custom_data": {},
+            },
+            format="json",
+        )
+        self.assertEqual(missing.status_code, 400, missing.data)
+
+    def test_people_require_name_email_and_designation(self):
+        client = self._client(self.owner)
+        missing_email = client.post(
+            self._people_url(),
+            {"name": "Pat Lee", "work_email": "", "job_title": "Analyst"},
+            format="json",
+        )
+        self.assertEqual(missing_email.status_code, 400, missing_email.data)
+        missing_title = client.post(
+            self._people_url(),
+            {"name": "Pat Lee", "work_email": "pat@example.com", "job_title": ""},
+            format="json",
+        )
+        self.assertEqual(missing_title.status_code, 400, missing_title.data)
+        invalid_email = client.post(
+            self._people_url(),
+            {"name": "Pat Lee", "work_email": "not-an-email", "job_title": "Analyst"},
+            format="json",
+        )
+        self.assertEqual(invalid_email.status_code, 400, invalid_email.data)
+
     def test_new_navigation_entry_appears_without_restoring_disabled_items(self):
         CompanyRoleNavigation.objects.filter(role__company=self.company, code="organization").delete()
         CompanyRoleNavigation.objects.filter(role__company=self.company, code="users").update(enabled=False)
         codes = [item["code"] for item in navigation_for(self.owner_membership)]
         self.assertIn("organization", codes)
         self.assertNotIn("users", codes)
+
+    def test_custom_data_persists_and_validates_on_units(self):
+        client = self._client(self.owner)
+        fields_url = f"/api/v1/companies/{self.company.id}/custom-fields/"
+        field = client.post(
+            fields_url,
+            {
+                "entity": "organization_unit",
+                "name": "Parent unit Code",
+                "field_type": "text",
+                "required": True,
+                "help_text": "External reference",
+            },
+            format="json",
+        )
+        self.assertEqual(field.status_code, 201, field.data)
+        self.assertEqual(field.data["key"], "parent-unit-code")
+
+        missing = client.post(
+            self._units_url(),
+            {"name": "Engineering", "key": "engineering", "custom_data": {}},
+            format="json",
+        )
+        self.assertEqual(missing.status_code, 400, missing.data)
+
+        unknown = client.post(
+            self._units_url(),
+            {
+                "name": "Engineering",
+                "key": "engineering",
+                "custom_data": {"parent-unit-code": "ENG", "not-a-field": "x"},
+            },
+            format="json",
+        )
+        self.assertEqual(unknown.status_code, 400, unknown.data)
+
+        created = client.post(
+            self._units_url(),
+            {
+                "name": "Engineering",
+                "key": "engineering",
+                "custom_data": {"parent-unit-code": "ENG-01"},
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["custom_data"]["parent-unit-code"], "ENG-01")
+        self.assertIsNone(created.data.get("parent_id"))
+
+        child = client.post(
+            self._units_url(),
+            {
+                "name": "Backend",
+                "key": "backend",
+                "parent_id": created.data["id"],
+                "custom_data": {"parent-unit-code": "ENG-BE"},
+            },
+            format="json",
+        )
+        self.assertEqual(child.status_code, 201, child.data)
+        self.assertEqual(child.data["parent_id"], created.data["id"])
+        self.assertEqual(child.data["custom_data"]["parent-unit-code"], "ENG-BE")
+
+        patched = client.patch(
+            self._unit_url(created.data["id"]),
+            {"custom_data": {"parent-unit-code": "ENG-99"}},
+            format="json",
+        )
+        self.assertEqual(patched.status_code, 200, patched.data)
+        self.assertEqual(patched.data["custom_data"]["parent-unit-code"], "ENG-99")
+        row = Department.objects.get(pk=created.data["id"])
+        self.assertEqual(row.custom_data["parent-unit-code"], "ENG-99")
+        self.assertIsNone(row.parent_id)
+
+        listed = client.get(self._units_url())
+        self.assertEqual(listed.status_code, 200)
+        eng = next(item for item in listed.data["units"] if item["id"] == created.data["id"])
+        self.assertEqual(eng["custom_data"]["parent-unit-code"], "ENG-99")
 
     def _open_company(self, slug, email):
         owner = User.objects.create_user(email=email, password=PASSWORD, first_name="Ada", last_name="Owner")

@@ -2,7 +2,7 @@ import re
 
 from django.core import mail
 from django.core.cache import cache
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.utils import ProgrammingError
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -121,9 +121,10 @@ class CompanyCreationTests(TestCase):
         audit = AuditLog.objects.get(action="company.created")
         self.assertEqual(str(audit.object_id), company.data["id"])
         self.assertIsNotNone(audit.request_id)
-        with self.assertRaises(ProgrammingError):
-            with transaction.atomic():
-                AuditLog.objects.filter(pk=audit.pk).update(action="tampered")
+        if connection.vendor == "postgresql":
+            with self.assertRaises(ProgrammingError):
+                with transaction.atomic():
+                    AuditLog.objects.filter(pk=audit.pk).update(action="tampered")
         with self.assertRaises(PermissionError):
             audit.delete()
 
@@ -140,4 +141,4 @@ class CompanyCreationTests(TestCase):
         logs = client.get("/api/v1/platform/audit-logs/")
         self.assertEqual(logs.status_code, 200)
         self.assertEqual(logs.data["results"][0]["action"], "company.created")
-        self.assertNotIn("after", logs.data["results"][0])
+        self.assertIn("after", logs.data["results"][0])

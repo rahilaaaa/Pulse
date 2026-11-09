@@ -6,6 +6,41 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+APPEND_ONLY_SQL = """
+CREATE OR REPLACE FUNCTION audit_logs_reject_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'audit_logs are append-only';
+END;
+$$;
+CREATE TRIGGER audit_logs_append_only
+BEFORE UPDATE OR DELETE ON audit_logs
+FOR EACH ROW
+EXECUTE FUNCTION audit_logs_reject_mutation();
+"""
+
+APPEND_ONLY_REVERSE = """
+DROP TRIGGER IF EXISTS audit_logs_append_only ON audit_logs;
+DROP FUNCTION IF EXISTS audit_logs_reject_mutation();
+"""
+
+
+def forwards_append_only(apps, schema_editor):
+    if schema_editor.connection.vendor != "postgresql":
+        return
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(APPEND_ONLY_SQL)
+
+
+def backwards_append_only(apps, schema_editor):
+    if schema_editor.connection.vendor != "postgresql":
+        return
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(APPEND_ONLY_REVERSE)
+
+
 class Migration(migrations.Migration):
 
     initial = True
@@ -36,24 +71,5 @@ class Migration(migrations.Migration):
                 'indexes': [models.Index(fields=['company', 'created_at'], name='audit_logs_company_created_idx'), models.Index(fields=['object_type', 'object_id'], name='audit_logs_object_idx'), models.Index(fields=['actor'], name='audit_logs_actor_idx')],
             },
         ),
-        migrations.RunSQL(
-            sql="""
-                CREATE OR REPLACE FUNCTION audit_logs_reject_mutation()
-                RETURNS trigger
-                LANGUAGE plpgsql
-                AS $$
-                BEGIN
-                  RAISE EXCEPTION 'audit_logs are append-only';
-                END;
-                $$;
-                CREATE TRIGGER audit_logs_append_only
-                BEFORE UPDATE OR DELETE ON audit_logs
-                FOR EACH ROW
-                EXECUTE FUNCTION audit_logs_reject_mutation();
-            """,
-            reverse_sql="""
-                DROP TRIGGER IF EXISTS audit_logs_append_only ON audit_logs;
-                DROP FUNCTION IF EXISTS audit_logs_reject_mutation();
-            """,
-        ),
+        migrations.RunPython(forwards_append_only, backwards_append_only),
     ]

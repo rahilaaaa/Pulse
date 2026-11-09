@@ -9,7 +9,12 @@ export type IconName =
   | "billing"
   | "notifications"
   | "audit"
-  | "leave";
+  | "leave"
+  | "parties"
+  | "projects"
+  | "crm"
+  | "commerce"
+  | "custom-entities";
 
 export type ShellLink = {
   code: string;
@@ -28,10 +33,15 @@ export const SHELL_LINKS: ShellLink[] = [
   { code: "modules", label: "Modules", to: "/app/modules", icon: "modules", section: "Administration" },
   { code: "roles", label: "Roles & Permissions", to: "/app/roles", icon: "roles", section: "Administration" },
   { code: "settings", label: "Configuration", to: "/app/settings", icon: "settings", section: "Administration" },
+  { code: "custom-entities", label: "Custom Records", to: "/app/custom-entities", icon: "custom-entities", section: "Administration" },
   { code: "billing", label: "Billing & Plan", to: "/app/billing", icon: "billing", section: "Administration" },
   { code: "notifications", label: "Notifications", to: "/app/notifications", icon: "notifications", section: "Administration" },
   { code: "audit", label: "Audit", to: "/app/audit", icon: "audit", section: "Administration" },
-  { code: "hrms", label: "Leave", to: "/app/hrms", icon: "leave", section: "Administration" },
+  { code: "hrms", label: "HRMS", to: "/app/hrms", icon: "leave", section: "Workspace" },
+  { code: "parties", label: "Parties", to: "/app/parties", icon: "parties", section: "Workspace" },
+  { code: "projects", label: "Projects", to: "/app/projects", icon: "projects", section: "Workspace" },
+  { code: "crm", label: "CRM", to: "/app/crm", icon: "crm", section: "Workspace" },
+  { code: "commerce", label: "Commerce", to: "/app/commerce", icon: "commerce", section: "Workspace" },
 ];
 
 export function NavIcon({ name }: { name: IconName }) {
@@ -74,6 +84,9 @@ export function NavIcon({ name }: { name: IconName }) {
   }
   if (name === "audit") {
     return <svg {...common}><path d="M8 4.5h8l3 3V19a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 6.5 19V6A1.5 1.5 0 0 1 8 4.5Z" /><path d="M16 4.5V8h3.5M9 12h6M9 16h6" /></svg>;
+  }
+  if (name === "custom-entities") {
+    return <svg {...common}><path d="M4 7h16M4 12h16M4 17h10" /><path d="M18 15v4M16 17h4" /></svg>;
   }
   return <svg {...common}><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3.5V7M16 3.5V7M4 10h16" /></svg>;
 }

@@ -2,7 +2,7 @@
 
 Pulse is a multi-tenant SaaS platform. Week 1 runs the Django API and the React platform console directly on Windows. Docker is not used.
 
-The approved architecture remains in [docs/architecture/](docs/architecture/). Intentional Week 1 schema differences are in [backend/MODEL_DIFFERENCES.md](backend/MODEL_DIFFERENCES.md).
+The approved architecture remains in [docs/architecture/](docs/architecture/). For what is implemented versus planned, see [docs/architecture/14-implementation-status.md](docs/architecture/14-implementation-status.md). Decisions live in [docs/architecture/12-architecture-decisions.md](docs/architecture/12-architecture-decisions.md).
 
 ## Prerequisites
 
@@ -75,9 +75,9 @@ npm run dev
 
 The Vite server proxies `/api` to `http://127.0.0.1:8000`, so the session cookie stays on `localhost:5173`. Open `http://localhost:5173/login`.
 
-Platform operators enter the email and password first. The session is not created until they confirm a 6-digit code from an authenticator app. The first sign-in shows a QR code and the secret so the app can be enrolled. Later sign-ins ask only for the current code. The secret is stored encrypted and is not returned again.
+Platform operators sign in with email and password. The session cookie is created after a successful password check.
 
-Company founders register at `http://localhost:5173/register`. Verification mail is sent through SMTP when `EMAIL_HOST_PASSWORD` is set in `.env`. Gmail needs an app password on `smtp.gmail.com` port `587`, and `DEFAULT_FROM_EMAIL` must be that Gmail address. Without that password, the link is printed in the API window and does not reach the inbox. After the link is confirmed, sign in at `http://localhost:5173/onboarding`. The checklist resumes at the first incomplete step: create the draft company, save the company profile, then save the billing profile. GSTIN is optional and is checked for format only. Plan selection is not open, and the company stays a draft. That company is what the platform console lists.
+Company founders register at `http://localhost:5173/register`. Verification mail is sent through SMTP when `EMAIL_HOST_PASSWORD` is set in `.env`. Gmail needs an app password on `smtp.gmail.com` port `587`, and `DEFAULT_FROM_EMAIL` must be that Gmail address. Without that password, the link is printed in the API window and does not reach the inbox. After the link is confirmed, sign in and continue at `http://localhost:5173/onboarding`. The checklist resumes at the first incomplete step: create the draft company, save the company profile, save the billing profile, then select a plan (Growth trial). GSTIN is optional and is checked for format only. Plan selection can install entitled modules such as HRMS Leave. Provider checkout and paid activation are not implemented. That company is what the platform console lists.
 
 ## Validation
 
@@ -116,4 +116,12 @@ The hook runs the default checks and stops the commit when one of them fails. Th
 
 ## Current limits
 
-Row-Level Security is not enabled. Platform permission checks protect the operator API, and they are not a substitute for tenant isolation. A verified founder can create one company, save its profile and billing profile, and start the catalog trial. The Growth plan is ₹2,499 per month or ₹24,999 per year, stored in paise. The trial does not capture a payment. Checkout, people, company roles, invitations, and module installation are not implemented.
+Row-Level Security is not enabled. Platform permission checks protect the operator API; they are not a substitute for tenant isolation. Composite foreign keys described in architecture DBML are not yet applied in Django migrations. See [14-implementation-status.md](docs/architecture/14-implementation-status.md).
+
+**Implemented (verified):** session login; founder registration and email verification; company create and onboarding profile/billing profile; Growth plan trial selection; people and departments; invitations; company roles and permission codes; custom fields and custom entities; HRMS Leave module install (when entitled) and leave request/decision APIs; workspace navigation gated by permission and installation; append-only company audit; platform operator users and companies (partial console).
+
+**Partial:** SaaS billing (trial and plan select without Razorpay checkout, invoices, or paid webhook activation); module lifecycle (install and failed retry; uninstall/upgrade/configure APIs missing); in-app notifications under the tenants app (email delivery for preferences unverified); platform billing and modules consoles largely stubs; leave visibility is company-wide for anyone with `hrms.leave.view` (own/manage scopes not implemented).
+
+**Planned / missing:** LegalEntity, Employment, and shared Party (approved directions in ADR-019/020; not modeled); Projects, CRM, Commerce, Inventory, Finance, and Help Desk product apps (catalog stubs only for some; Commerce not in catalog); database-backed `background_tasks`; PostgreSQL RLS (ADR-016—separate readiness decision, not approved for immediate enablement); tenant-integrity gate work before Projects/CRM (ADR-021).
+
+The Growth plan is ₹2,499 per month or ₹24,999 per year, stored in paise. The trial does not capture a payment.
