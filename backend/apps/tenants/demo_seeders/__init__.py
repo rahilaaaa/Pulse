@@ -1,2 +1,0 @@
-"""Pulse Demo Seeders Package."""
-
