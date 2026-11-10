@@ -60,7 +60,7 @@ class OnboardingModulesView(APIView):
 
     def get(self, request):
         from apps.modules_registry.services import list_onboarding_modules
-
+        
         return Response(list_onboarding_modules())
 
     def post(self, request):
