@@ -1,6 +1,9 @@
 
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+import hashlib
+
+from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
@@ -53,3 +56,47 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+
+class EmailVerification(models.Model):
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="email_verification_tokens",
+    )
+
+    token_hash = models.CharField(
+        max_length=64,
+        unique=True,
+    )
+
+    expires_at = models.DateTimeField()
+
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "email_verifications"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["user", "expires_at"],
+                name="email_verify_user_exp_idx",
+            ),
+        ]
+
+    @property
+    def is_valid(self):
+        return (
+            self.used_at is None
+            and self.expires_at > timezone.now()
+        )
+
+    def __str__(self):
+        return f"Email verification for {self.user.email}"
