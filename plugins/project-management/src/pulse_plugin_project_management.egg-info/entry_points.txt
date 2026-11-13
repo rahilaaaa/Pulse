@@ -1,0 +1,2 @@
+[pulse.plugins]
+project_management = pulse_plugin_project_management.plugin:plugin

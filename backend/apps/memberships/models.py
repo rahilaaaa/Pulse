@@ -41,8 +41,8 @@ class CompanyMembership(models.Model):
         db_index=True,
     )
 
-    joined_at = models.DateTimeField(auto_now_add=True)
-
+    joined_at = models.DateTimeField(null=True,blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     updated_at = models.DateTimeField(auto_now=True)

@@ -1,0 +1,11 @@
+pyproject.toml
+src/pulse_plugin_project_management/__init__.py
+src/pulse_plugin_project_management/apps.py
+src/pulse_plugin_project_management/plugin.py
+src/pulse_plugin_project_management/urls.py
+src/pulse_plugin_project_management.egg-info/PKG-INFO
+src/pulse_plugin_project_management.egg-info/SOURCES.txt
+src/pulse_plugin_project_management.egg-info/dependency_links.txt
+src/pulse_plugin_project_management.egg-info/entry_points.txt
+src/pulse_plugin_project_management.egg-info/requires.txt
+src/pulse_plugin_project_management.egg-info/top_level.txt

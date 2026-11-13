@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pulse-plugin-hrms"
+version = "1.0.0"
+description = "HRMS plugin for Pulse ERP"
+requires-python = ">=3.12"
+dependencies = [
+    "pulse-plugin-sdk>=1.0.0,<2.0.0",
+    "Django>=5.2,<5.3",
+]
+
+[project.entry-points."pulse.plugins"]
+hrms = "pulse_plugin_hrms.plugin:plugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]

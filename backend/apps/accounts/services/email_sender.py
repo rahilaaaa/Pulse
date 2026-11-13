@@ -1,5 +1,7 @@
+
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
 
 
 def send_verification_email(user, raw_token):
@@ -10,8 +12,14 @@ def send_verification_email(user, raw_token):
 
     subject = "Verify your Pulse account"
 
-    message = f"""
-Hello {user.first_name},
+    context = {
+        "first_name": user.first_name or "there",
+        "verification_url": verification_url,
+    }
+
+    # Plain-text fallback for email clients that do not support HTML.
+    text_content = f"""
+Hello {context["first_name"]},
 
 Thank you for registering with Pulse.
 
@@ -27,10 +35,19 @@ Regards,
 Pulse Team
 """
 
-    return send_mail(
-        subject=subject,
-        message=message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
+    # Render the HTML email template.
+    html_content = render_to_string(
+        "emails/verify_email.html",
+        context,
     )
+
+    email = EmailMultiAlternatives(
+        subject=subject,
+        body=text_content,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+
+    email.attach_alternative(html_content, "text/html")
+
+    return email.send(fail_silently=False)

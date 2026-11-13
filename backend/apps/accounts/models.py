@@ -2,6 +2,7 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 import hashlib
+import secrets
 
 from django.utils import timezone
 
@@ -100,3 +101,46 @@ class EmailVerification(models.Model):
 
     def __str__(self):
         return f"Email verification for {self.user.email}"
+
+
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="password_reset_tokens",
+    )
+
+    token_hash = models.CharField(
+        max_length=64,
+        unique=True,
+    )
+
+    expires_at = models.DateTimeField()
+
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "password_reset_tokens"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["user", "expires_at"],
+                name="pwd_reset_user_exp_idx",
+            ),
+        ]
+
+    @property
+    def is_valid(self):
+        return (
+            self.used_at is None
+            and self.expires_at > timezone.now()
+        )
+
+    def __str__(self):
+        return f"Password reset for {self.user.email}"

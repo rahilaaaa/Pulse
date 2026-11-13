@@ -1,4 +1,3 @@
-
 from django.db import models
 
 
@@ -9,19 +8,22 @@ class Company(models.Model):
         SUSPENDED = "suspended", "Suspended"
 
     name = models.CharField(max_length=255)
-
     industry = models.CharField(max_length=100)
-
     business_email = models.EmailField()
-
     phone = models.CharField(max_length=30)
 
-    country = models.CharField(max_length=100)
-
-    website = models.URLField(
+    # Structured company address
+    address_line_1 = models.CharField(max_length=255)
+    address_line_2 = models.CharField(
         max_length=255,
         blank=True,
     )
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    postal_code = models.CharField(max_length=20)
+    country = models.CharField(max_length=100)
+
+    website = models.URLField(max_length=255, blank=True)
 
     status = models.CharField(
         max_length=20,
@@ -30,8 +32,9 @@ class Company(models.Model):
         db_index=True,
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    onboarding_completed = models.BooleanField(default=False)
 
+    created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

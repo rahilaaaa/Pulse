@@ -1,0 +1,2 @@
+[pulse.plugins]
+hrms = pulse_plugin_hrms.plugin:plugin

@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class CompanyModulesConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.company_modules"
+    verbose_name = "Company Modules"

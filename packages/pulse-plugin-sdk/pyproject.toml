@@ -1,0 +1,13 @@
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pulse-plugin-sdk"
+version = "1.0.0"
+description = "Internal SDK and contracts for Pulse plugins"
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

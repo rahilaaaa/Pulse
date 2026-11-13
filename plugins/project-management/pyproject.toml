@@ -1,0 +1,20 @@
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pulse-plugin-project-management"
+version = "1.0.0"
+description = "Project Management plugin for Pulse ERP"
+requires-python = ">=3.12"
+dependencies = [
+    "pulse-plugin-sdk>=1.0.0,<2.0.0",
+    "Django>=5.2,<5.3",
+]
+
+[project.entry-points."pulse.plugins"]
+project_management = "pulse_plugin_project_management.plugin:plugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]

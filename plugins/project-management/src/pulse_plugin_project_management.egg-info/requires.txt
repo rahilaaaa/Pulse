@@ -1,0 +1,2 @@
+pulse-plugin-sdk<2.0.0,>=1.0.0
+Django<5.3,>=5.2
