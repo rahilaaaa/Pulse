@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-
+import ModulesPage from "./pages/ModulesPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
@@ -12,6 +12,7 @@ import CompanySelectPage from "./pages/CompanySelectPage";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
 import DashboardLayout from "./layouts/DashboardLayout";
+import "./App.css";
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/companies" element={<CompanySelectPage />} />
+          <Route path="/modules" element={<ModulesPage />} />
         </Route>
       </Route>
 

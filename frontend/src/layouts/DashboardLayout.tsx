@@ -27,6 +27,7 @@ export default function DashboardLayout() {
         <nav className="sidebar-nav">
           <NavLink to="/dashboard">Overview</NavLink>
           <NavLink to="/companies">Switch company</NavLink>
+          <NavLink to="/modules">Modules</NavLink>
         </nav>
 
         <div className="sidebar-bottom">

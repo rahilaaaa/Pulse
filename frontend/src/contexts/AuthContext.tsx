@@ -19,6 +19,7 @@ import {
 import {
   getMyCompanies,
   selectCompany as selectCompanyApi,
+  getCompanyContext,
 } from "../api/memberships";
 
 import { setAccessToken } from "../api/axios";
@@ -106,11 +107,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(currentUser);
 
-        try {
-          await loadCompanies();
-        } catch {
-          // User remains authenticated even if company loading fails.
-        }
+       try {
+  await loadCompanies();
+
+  const companyContext = await getCompanyContext();
+
+  if (!mounted) return;
+
+  setActiveCompany(companyContext.active_company);
+} catch {
+  if (mounted) {
+    setActiveCompany(null);
+  }
+}
       } catch {
         if (mounted) {
           setAccessToken(null);

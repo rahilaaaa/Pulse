@@ -1,14 +1,36 @@
-from django.http import JsonResponse
+
 from django.urls import path
 
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-def project_management_home(request):
-    return JsonResponse({
-        "module": "Project Management",
-        "status": "available",
-    })
+from apps.memberships.permissions.company_access import HasActiveCompany
+from apps.company_modules.permissions import HasInstalledModule
 
+class ProjectManagementHomeView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+        HasActiveCompany,
+        HasInstalledModule,
+    ]
+
+    module_key = "project_management"
+
+    def get(self, request):
+        return Response({
+            "module": "Project Management",
+            "status": "available",
+            "company": {
+                "id": request.company.id,
+                "name": request.company.name,
+            },
+        })
 
 urlpatterns = [
-    path("", project_management_home, name="project-management-home"),
+    path(
+        "",
+        ProjectManagementHomeView.as_view(),
+        name="project-management-home",
+    ),
 ]
