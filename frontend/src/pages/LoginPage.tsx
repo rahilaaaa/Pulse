@@ -1,6 +1,6 @@
 
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import { useAuth } from "../contexts/AuthContext";
@@ -8,16 +8,12 @@ import PasswordInput from "../components/PasswordInput";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, isAuthenticated } = useAuth();
+  const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  if (isAuthenticated) {
-    return <Navigate to="/companies" replace />;
-  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -25,7 +21,11 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      await login({ email: email.trim(), password });
+      await login({
+        email: email.trim(),
+        password,
+      });
+
       navigate("/companies", { replace: true });
     } catch (err) {
       if (axios.isAxiosError(err)) {
@@ -91,7 +91,7 @@ export default function LoginPage() {
             onChange={setPassword}
             placeholder="Enter your password"
             autoComplete="current-password"
-            />
+          />
 
           <button type="submit" disabled={submitting}>
             {submitting ? "Signing in..." : "Sign in"}

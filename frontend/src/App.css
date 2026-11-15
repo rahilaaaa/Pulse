@@ -933,3 +933,542 @@
     padding: 12px 18px;
   }
 }
+
+
+/* =========================================
+   MODULE ONBOARDING
+========================================= */
+
+.module-onboarding-card {
+  width: 100%;
+  max-width: 560px;
+  padding: 28px;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.module-onboarding-card .brand {
+  margin-bottom: 35px;
+}
+
+.module-onboarding-card .auth-heading {
+  margin: 0 0 25px;
+}
+
+.module-onboarding-card .auth-heading h1 {
+  font-size: 28px;
+}
+
+.onboarding-company {
+  margin: 0 0 20px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.onboarding-company strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Module choices */
+
+.module-choice-list {
+  display: grid;
+  gap: 12px;
+  margin: 22px 0;
+}
+
+.module-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.module-choice:hover {
+  border-color: var(--color-primary);
+  background: #f8fbff;
+}
+
+.module-choice.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.module-choice:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+.module-choice:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.module-choice-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 21px;
+  height: 21px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.module-choice.selected .module-choice-check {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.module-choice-content {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.module-choice-content strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.module-choice-content small {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Continue button */
+
+.module-onboarding-card > button:not(.module-choice) {
+  width: 100%;
+  min-height: 47px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: #101010;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.module-onboarding-card > button:not(.module-choice):hover {
+  background: var(--color-primary-hover);
+}
+
+.module-onboarding-card > button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Skip button */
+
+.module-onboarding-card > .module-skip-button {
+  margin-top: 10px;
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  color: var(--color-text-secondary);
+}
+
+.module-onboarding-card > .module-skip-button:hover {
+  background: var(--color-input);
+}
+
+
+/* =========================================
+   MODULE INSTALLATION STATUS CARD
+========================================= */
+
+.module-installing-panel {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: var(--radius-md);
+  background: #f8fbff;
+}
+
+.module-installing-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.module-installing-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.module-installing-symbol {
+  font-size: 23px;
+}
+
+.module-installing-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.module-installing-content strong {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.module-installing-content span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.module-installing-spinner {
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+  border: 2px solid #dbeafe;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: module-install-spin 0.8s linear infinite;
+}
+
+.module-installing-divider {
+  height: 1px;
+  margin: 15px 0;
+  background: #e5edf8;
+}
+
+.module-installing-message {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.module-clock-icon {
+  color: #3b82f6;
+  font-size: 19px;
+}
+
+.module-status.installing {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+@keyframes module-install-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+
+/* =========================================
+   ONBOARDING INSTALLATION EXPERIENCE
+========================================= */
+
+.onboarding-installation {
+  margin-top: 28px;
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: var(--radius-lg);
+  background: #f8fbff;
+}
+
+.onboarding-installation-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.onboarding-installation-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 23px;
+}
+
+.onboarding-installation-heading > div {
+  flex: 1;
+}
+
+.onboarding-installation-heading h2 {
+  margin: 0 0 5px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.onboarding-installation-heading p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.onboarding-installation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.onboarding-installation-list > p {
+  margin: 0 0 3px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.onboarding-installation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.onboarding-installation-message {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.onboarding-wait-message {
+  margin: 17px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid #e5edf8;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.field-error {
+  margin: -8px 0 12px;
+  color: #dc2626;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.auth-form input[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+.auth-form input[aria-invalid="true"]:focus {
+  outline-color: #dc2626;
+}
+
+.field-error {
+  margin: -8px 0 12px;
+  color: #dc2626;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.auth-form input[aria-invalid="true"] {
+  border: 1px solid #dc2626;
+}
+
+.auth-form input[aria-invalid="true"]:focus {
+  outline-color: #dc2626;
+}
+
+
+/* Apply consistent styling to inputs and dropdowns */
+.auth-form input,
+.auth-form select {
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background-color: #f3f3f3;
+  color: #111827;
+  font-family: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+/* Dropdown styling */
+.auth-form select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  padding-right: 36px;
+
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+}
+
+/* Focus state */
+.auth-form input:focus,
+.auth-form select:focus {
+  outline: none;
+  border-color: #80b4f0;
+  background-color: #ffffff;
+}
+
+/* Placeholder / default option */
+.auth-form select:invalid {
+  color: #6b7280;
+}
+
+/* Validation error */
+.auth-form input[aria-invalid="true"],
+.auth-form select[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+/* Disabled state */
+.auth-form input:disabled,
+.auth-form select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+
+.confirm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+}
+
+.confirm-dialog {
+  width: 100%;
+  max-width: 420px;
+  padding: 26px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+  animation: confirm-dialog-enter 0.18s ease-out;
+}
+
+.confirm-dialog-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  background: #fff1f0;
+  color: #dc2626;
+  font-size: 23px;
+  font-weight: 600;
+}
+
+.confirm-dialog-content h2 {
+  margin: 0 0 9px;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.confirm-dialog-content p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.confirm-dialog-actions button {
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.confirm-dialog-cancel {
+  border: 1px solid #dbe1e8;
+  background: #ffffff;
+  color: #374151;
+}
+
+.confirm-dialog-cancel:hover {
+  background: #f8fafc;
+}
+
+.confirm-dialog-confirm {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.confirm-dialog-confirm:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.confirm-dialog-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@keyframes confirm-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 480px) {
+  .confirm-dialog {
+    padding: 22px;
+  }
+}
