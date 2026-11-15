@@ -3,108 +3,189 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 
-import { registerCompany } from "../api/auth";
+import { registerUser } from "../api/auth";
 import PasswordInput from "../components/PasswordInput";
 
-interface RegistrationForm {
-  company_name: string;
-  industry: string;
-  business_email: string;
-  phone: string;
-  country: string;
-  website: string;
+type RegistrationForm = {
   first_name: string;
   last_name: string;
   email: string;
   password: string;
-}
+};
+
+type RegistrationErrors = Partial<
+  Record<keyof RegistrationForm, string>
+>;
 
 const initialForm: RegistrationForm = {
-  company_name: "",
-  industry: "",
-  business_email: "",
-  phone: "",
-  country: "",
-  website: "",
   first_name: "",
   last_name: "",
   email: "",
   password: "",
 };
 
+function validateForm(form: RegistrationForm): RegistrationErrors {
+  const errors: RegistrationErrors = {};
+
+  if (!form.first_name.trim()) {
+    errors.first_name = "First name is required.";
+  }
+
+  if (!form.last_name.trim()) {
+    errors.last_name = "Last name is required.";
+  }
+
+  const email = form.email.trim();
+
+  if (!email) {
+    errors.email = "Email address is required.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = "Enter a valid email address.";
+  }
+
+  if (!form.password) {
+    errors.password = "Password is required.";
+  } else if (form.password.length < 6) {
+    errors.password = "Password must contain at least 6 characters.";
+  }
+
+  return errors;
+}
+
+function getBackendErrors(
+  data: unknown,
+): {
+  fieldErrors: RegistrationErrors;
+  generalError: string;
+} {
+  const fieldErrors: RegistrationErrors = {};
+
+  if (!data || typeof data !== "object") {
+    return {
+      fieldErrors,
+      generalError: "Registration failed. Please try again.",
+    };
+  }
+
+  const response = data as Record<string, unknown>;
+
+  const fields: (keyof RegistrationForm)[] = [
+    "first_name",
+    "last_name",
+    "email",
+    "password",
+  ];
+
+  for (const field of fields) {
+    const value = response[field];
+
+    if (Array.isArray(value) && value.length > 0) {
+      fieldErrors[field] = String(value[0]);
+    } else if (typeof value === "string") {
+      fieldErrors[field] = value;
+    }
+  }
+
+  const nonFieldErrors = response.non_field_errors;
+
+  if (Array.isArray(nonFieldErrors) && nonFieldErrors.length > 0) {
+    return {
+      fieldErrors,
+      generalError: String(nonFieldErrors[0]),
+    };
+  }
+
+  if (typeof response.detail === "string") {
+    return {
+      fieldErrors,
+      generalError: response.detail,
+    };
+  }
+
+  if (typeof response.message === "string") {
+    return {
+      fieldErrors,
+      generalError: response.message,
+    };
+  }
+
+  const hasFieldErrors = Object.keys(fieldErrors).length > 0;
+
+  return {
+    fieldErrors,
+    generalError: hasFieldErrors
+      ? ""
+      : "Registration failed. Please try again.",
+  };
+}
+
 export default function RegisterPage() {
   const navigate = useNavigate();
 
-  const [step, setStep] = useState(1);
   const [form, setForm] = useState<RegistrationForm>(initialForm);
+  const [fieldErrors, setFieldErrors] =
+    useState<RegistrationErrors>({});
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const updateField = (field: keyof RegistrationForm, value: string) => {
-    setForm((current) => ({ ...current, [field]: value }));
+  const updateField = (
+    field: keyof RegistrationForm,
+    value: string,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+
+    setFieldErrors((current) => ({
+      ...current,
+      [field]: undefined,
+    }));
+
+    setError("");
   };
 
-  const handleNext = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
-    setError("");
-    setStep(2);
-  };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+    if (submitting) return;
+
     setError("");
 
-    if (form.password.length < 12) {
-      setError("Password must contain at least 12 characters.");
+    const validationErrors = validateForm(form);
+
+    setFieldErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
     setSubmitting(true);
 
+    const normalizedEmail = form.email.trim().toLowerCase();
+
     try {
-      await registerCompany({
-        ...form,
-        company_name: form.company_name.trim(),
-        industry: form.industry.trim(),
-        business_email: form.business_email.trim(),
-        phone: form.phone.trim(),
-        country: form.country.trim(),
-        website: form.website.trim() || undefined,
+      await registerUser({
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
-        email: form.email.trim().toLowerCase(),
+        email: normalizedEmail,
+        password: form.password,
       });
 
       navigate(
         `/registration-success?email=${encodeURIComponent(
-          form.email.trim().toLowerCase(),
+          normalizedEmail,
         )}`,
         { replace: true },
       );
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        const data = err.response?.data;
+        const result = getBackendErrors(err.response?.data);
 
-        if (data && typeof data === "object") {
-          const messages = Object.entries(data)
-            .map(([field, value]) => {
-              const detail = Array.isArray(value)
-                ? value.join(", ")
-                : typeof value === "string"
-                  ? value
-                  : JSON.stringify(value);
-
-              return `${field.replaceAll("_", " ")}: ${detail}`;
-            })
-            .join(" ");
-
-          setError(
-            messages ||
-              "Registration failed. Please check your information.",
-          );
-        } else {
-          setError("Unable to complete registration. Please try again.");
-        }
+        setFieldErrors(result.fieldErrors);
+        setError(result.generalError);
       } else {
         setError("Something went wrong. Please try again.");
       }
@@ -114,199 +195,128 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="registration-page">
-      <section className="registration-container">
-        <header className="registration-header">
-          <Link to="/login" className="brand">
-            <div className="brand-mark">P</div>
-            <span>Pulse</span>
-          </Link>
-
-          <div className="registration-progress">
-            <span className={step === 1 ? "current" : "completed"} />
-            <span className={step === 2 ? "current" : ""} />
-          </div>
-        </header>
-
-        <div className="registration-heading">
-          <span className="step-label">STEP {step} OF 2</span>
-
-          <h1>
-            {step === 1
-              ? "Set up your company"
-              : "Create your administrator account"}
-          </h1>
-
-          <p>
-            {step === 1
-              ? "Tell us a little about your organization."
-              : "Enter the details of the person who will manage this workspace."}
-          </p>
+    <main className="auth-page">
+      <section className="auth-card">
+        <div className="brand">
+          <div className="brand-mark">P</div>
+          <span>Pulse</span>
         </div>
 
-        {error && (
-          <div className="error-message" role="alert">
-            {error}
-          </div>
-        )}
+        <div className="auth-heading">
+          <h1>Create your account</h1>
+          <p>Start by creating your personal Pulse account.</p>
+        </div>
 
-        {step === 1 ? (
-          <form className="registration-form" onSubmit={handleNext}>
-            <label htmlFor="company_name">Company name *</label>
-            <input
-              id="company_name"
-              value={form.company_name}
-              onChange={(e) =>
-                updateField("company_name", e.target.value)
-              }
-              placeholder="Enter company name"
-              required
-            />
-
-            <label htmlFor="industry">Industry *</label>
-            <input
-              id="industry"
-              value={form.industry}
-              onChange={(e) => updateField("industry", e.target.value)}
-              placeholder="e.g. Technology"
-              required
-            />
-
-            <label htmlFor="business_email">Business email *</label>
-            <input
-              id="business_email"
-              type="email"
-              value={form.business_email}
-              onChange={(e) =>
-                updateField("business_email", e.target.value)
-              }
-              placeholder="company@example.com"
-              required
-            />
-
-            <div className="registration-two-columns">
-              <div>
-                <label htmlFor="phone">Phone *</label>
-                <input
-                  id="phone"
-                  type="tel"
-                  value={form.phone}
-                  onChange={(e) => updateField("phone", e.target.value)}
-                  placeholder="Phone number"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="country">Country *</label>
-                <input
-                  id="country"
-                  value={form.country}
-                  onChange={(e) => updateField("country", e.target.value)}
-                  placeholder="Country"
-                  required
-                />
-              </div>
+        <form
+          className="auth-form"
+          onSubmit={handleSubmit}
+          noValidate
+        >
+          {error && (
+            <div className="error-message" role="alert">
+              {error}
             </div>
+          )}
 
-            <label htmlFor="website">Website</label>
-            <input
-              id="website"
-              type="url"
-              value={form.website}
-              onChange={(e) => updateField("website", e.target.value)}
-              placeholder="https://example.com (optional)"
-            />
-
-            <button className="registration-primary" type="submit">
-              Continue
-              <span>→</span>
-            </button>
-          </form>
-        ) : (
-          <form className="registration-form" onSubmit={handleSubmit}>
-            <div className="registration-two-columns">
-              <div>
-                <label htmlFor="first_name">First name *</label>
-                <input
-                  id="first_name"
-                  value={form.first_name}
-                  onChange={(e) =>
-                    updateField("first_name", e.target.value)
-                  }
-                  placeholder="First name"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="last_name">Last name *</label>
-                <input
-                  id="last_name"
-                  value={form.last_name}
-                  onChange={(e) =>
-                    updateField("last_name", e.target.value)
-                  }
-                  placeholder="Last name"
-                  required
-                />
-              </div>
-            </div>
-
-            <label htmlFor="email">Administrator email *</label>
-            <input
-              id="email"
-              type="email"
-              value={form.email}
-              onChange={(e) => updateField("email", e.target.value)}
-              placeholder="you@company.com"
-              autoComplete="email"
-              required
-            />
-
-            <label htmlFor="password">Password *</label>
-            <PasswordInput
-              id="password"
-              name="password"
-              value={form.password}
-              onChange={(value) => updateField("password", value)}
-              placeholder="Create a password"
-              autoComplete="new-password"
-            />
-
-            <p className="registration-hint">
-              Use at least 12 characters for your password.
+          <label htmlFor="first_name">First name</label>
+          <input
+            id="first_name"
+            name="first_name"
+            type="text"
+            value={form.first_name}
+            onChange={(e) =>
+              updateField("first_name", e.target.value)
+            }
+            autoComplete="given-name"
+            aria-invalid={Boolean(fieldErrors.first_name)}
+            aria-describedby={
+              fieldErrors.first_name
+                ? "first_name-error"
+                : undefined
+            }
+            disabled={submitting}
+          />
+          {fieldErrors.first_name && (
+            <p id="first_name-error" className="field-error" role="alert">
+              {fieldErrors.first_name}
             </p>
+          )}
 
-            <div className="registration-actions">
-              <button
-                type="button"
-                className="registration-secondary"
-                onClick={() => {
-                  setError("");
-                  setStep(1);
-                }}
-                disabled={submitting}
-              >
-                Back
-              </button>
+          <label htmlFor="last_name">Last name</label>
+          <input
+            id="last_name"
+            name="last_name"
+            type="text"
+            value={form.last_name}
+            onChange={(e) =>
+              updateField("last_name", e.target.value)
+            }
+            autoComplete="family-name"
+            aria-invalid={Boolean(fieldErrors.last_name)}
+            aria-describedby={
+              fieldErrors.last_name
+                ? "last_name-error"
+                : undefined
+            }
+            disabled={submitting}
+          />
+          {fieldErrors.last_name && (
+            <p id="last_name-error" className="field-error" role="alert">
+              {fieldErrors.last_name}
+            </p>
+          )}
 
-              <button
-                type="submit"
-                className="registration-primary"
-                disabled={submitting}
-              >
-                {submitting ? "Creating account..." : "Create account"}
-                {!submitting && <span>→</span>}
-              </button>
-            </div>
-          </form>
-        )}
+          <label htmlFor="email">Email address</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            value={form.email}
+            onChange={(e) =>
+              updateField("email", e.target.value)
+            }
+            autoComplete="email"
+            aria-invalid={Boolean(fieldErrors.email)}
+            aria-describedby={
+              fieldErrors.email ? "email-error" : undefined
+            }
+            disabled={submitting}
+          />
+          {fieldErrors.email && (
+            <p id="email-error" className="field-error" role="alert">
+              {fieldErrors.email}
+            </p>
+          )}
 
-        <p className="registration-footer">
+          <label htmlFor="password">Password</label>
+          <PasswordInput
+            id="password"
+            name="password"
+            value={form.password}
+            onChange={(value) => updateField("password", value)}
+            placeholder="Create a password"
+            autoComplete="new-password"
+          />
+
+          {fieldErrors.password && (
+            <p id="password-error" className="field-error" role="alert">
+              {fieldErrors.password}
+            </p>
+          )}
+
+          <p className="registration-hint">
+            Use at least 6 characters for your password.
+          </p>
+
+          <button type="submit" disabled={submitting}>
+            {submitting ? "Creating account..." : "Create account"}
+          </button>
+        </form>
+
+        <p className="auth-footer">
           Already have an account? <Link to="/login">Sign in</Link>
         </p>
       </section>
     </main>
-  );  
+  );
 }

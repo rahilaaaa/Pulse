@@ -6,19 +6,24 @@ import type {
   User,
 } from "../types/auth";
 
+
 export interface RegistrationRequest {
-  company_name: string;
-  industry: string;
-  business_email: string;
-  phone: string;
-  country: string;
-  website?: string;
   first_name: string;
   last_name: string;
   email: string;
   password: string;
 }
 
+export const registerUser = async (data: RegistrationRequest) => {
+  await api.get("/accounts/csrf/");
+
+  const response = await api.post<ApiMessageResponse>(
+    "/accounts/register/",
+    data,
+  );
+
+  return response.data;
+};
 export const loginUser = async (data: LoginRequest) => {
   await api.get("/accounts/csrf/");
 

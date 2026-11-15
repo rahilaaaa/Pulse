@@ -5,6 +5,8 @@ import type {
   InternalAxiosRequestConfig,
 } from "axios";
 
+import { getStoredCompanyId } from "../utils/companySession";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   "http://127.0.0.1:8000/api";
@@ -83,9 +85,11 @@ api.interceptors.response.use(
           try {
             await api.get("/accounts/csrf/");
 
+            const companyId = getStoredCompanyId();
+
             const response = await api.post(
               "/accounts/token/refresh/",
-              {},
+              companyId ? { company_id: companyId } : {},
             );
 
             const newToken = response.data.access as string;
@@ -97,8 +101,13 @@ api.interceptors.response.use(
             setAccessToken(newToken);
 
             return newToken;
-          } catch {
+         } catch {
             setAccessToken(null);
+
+            window.dispatchEvent(
+              new Event("pulse:auth-expired")
+            );
+
             return null;
           } finally {
             refreshPromise = null;
@@ -116,8 +125,13 @@ api.interceptors.response.use(
       originalRequest.headers.Authorization = `Bearer ${newToken}`;
 
       return api(originalRequest);
-    } catch (refreshError) {
+   } catch (refreshError) {
       setAccessToken(null);
+
+      window.dispatchEvent(
+        new Event("pulse:auth-expired")
+      );
+
       return Promise.reject(refreshError);
     }
   },

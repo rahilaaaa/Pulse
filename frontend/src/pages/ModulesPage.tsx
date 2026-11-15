@@ -8,6 +8,8 @@ import {
   uninstallCompanyModule,
 } from "../api/companyModules";
 
+import ConfirmDialog from "../components/ConfirmDialog";
+
 import type {
   AvailableModule,
   CompanyModule,
@@ -17,8 +19,23 @@ import type {
 export default function ModulesPage() {
   const [availableModules, setAvailableModules] = useState<AvailableModule[]>([]);
   const [installedModules, setInstalledModules] = useState<CompanyModule[]>([]);
+
   const [loading, setLoading] = useState(true);
-  const [processingModule, setProcessingModule] = useState<ModuleKey | null>(null);
+
+  const [processingModule, setProcessingModule] = useState<ModuleKey | null>(
+    null,
+  );
+
+  const [processingAction, setProcessingAction] = useState<
+    "install" | "uninstall" | null
+  >(null);
+
+  const [selectedModule, setSelectedModule] = useState<ModuleKey | null>(
+    null,
+  );
+
+  const [showUninstallDialog, setShowUninstallDialog] = useState(false);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -52,47 +69,86 @@ export default function ModulesPage() {
     );
 
   const handleInstall = async (moduleKey: ModuleKey) => {
+    if (processingModule !== null) return;
+
     try {
       setProcessingModule(moduleKey);
+      setProcessingAction("install");
       setError("");
       setSuccess("");
 
       await installCompanyModule(moduleKey);
 
-      setSuccess("Module installed successfully.");
       await loadModules();
+
+      setSuccess("Module installed successfully.");
     } catch {
-      setError("Unable to install this module.");
+      setError("Unable to install this module. Please try again.");
     } finally {
       setProcessingModule(null);
+      setProcessingAction(null);
     }
   };
 
-  const handleUninstall = async (moduleKey: ModuleKey) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to uninstall this module? Your existing module data will be preserved.",
-    );
+  // Open the custom confirmation modal.
+  const handleUninstallClick = (moduleKey: ModuleKey) => {
+    if (processingModule !== null) return;
 
-    if (!confirmed) return;
+    setSelectedModule(moduleKey);
+    setShowUninstallDialog(true);
+    setError("");
+    setSuccess("");
+  };
+
+  // Execute uninstall only after explicit confirmation.
+  const handleConfirmUninstall = async () => {
+    if (!selectedModule || processingModule !== null) return;
+
+    const moduleKey = selectedModule;
 
     try {
       setProcessingModule(moduleKey);
+      setProcessingAction("uninstall");
       setError("");
       setSuccess("");
 
       await uninstallCompanyModule(moduleKey);
 
-      setSuccess("Module uninstalled successfully.");
       await loadModules();
+
+      setSuccess("Module uninstalled successfully.");
+
+      setShowUninstallDialog(false);
+      setSelectedModule(null);
     } catch {
-      setError("Unable to uninstall this module.");
+      setError("Unable to uninstall this module. Please try again.");
+
+      setShowUninstallDialog(false);
+      setSelectedModule(null);
     } finally {
       setProcessingModule(null);
+      setProcessingAction(null);
     }
   };
 
+  const handleCancelUninstall = () => {
+    if (processingModule !== null) return;
+
+    setShowUninstallDialog(false);
+    setSelectedModule(null);
+  };
+
+  const selectedModuleName =
+    availableModules.find((module) => module.key === selectedModule)?.name ??
+    selectedModule;
+
   if (loading) {
-    return <p>Loading modules...</p>;
+    return (
+      <div className="page-loading">
+        <span className="spinner" />
+        <p>Loading modules...</p>
+      </div>
+    );
   }
 
   return (
@@ -104,13 +160,28 @@ export default function ModulesPage() {
         </div>
       </div>
 
-      {error && <div className="message error-message">{error}</div>}
-      {success && <div className="message success-message">{success}</div>}
+      {error && (
+        <div className="message error-message" role="alert">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="message success-message" role="status">
+          {success}
+        </div>
+      )}
 
       <div className="modules-grid">
         {availableModules.map((module) => {
           const installed = isInstalled(module.key);
           const processing = processingModule === module.key;
+
+          const installing =
+            processing && processingAction === "install";
+
+          const uninstalling =
+            processing && processingAction === "uninstall";
 
           return (
             <article className="module-card" key={module.key}>
@@ -124,36 +195,74 @@ export default function ModulesPage() {
 
                 <span
                   className={`module-status ${
-                    installed ? "installed" : "not-installed"
+                    installed
+                      ? "installed"
+                      : installing
+                        ? "installing"
+                        : "not-installed"
                   }`}
                 >
-                  {installed ? "Installed" : "Not installed"}
+                  {installed
+                    ? "Installed"
+                    : installing
+                      ? "Installing"
+                      : "Not installed"}
                 </span>
               </div>
 
               <p>{module.description}</p>
 
-              <div className="module-card-footer">
-                {installed ? (
-                  <button
-                    type="button"
-                    className="module-button secondary"
-                    disabled={processing}
-                    onClick={() => void handleUninstall(module.key)}
-                  >
-                    {processing ? "Processing..." : "Uninstall"}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="module-button primary"
-                    disabled={processing}
-                    onClick={() => void handleInstall(module.key)}
-                  >
-                    {processing ? "Installing..." : "Install module"}
-                  </button>
-                )}
-              </div>
+              {installing ? (
+                <div
+                  className="module-installing-panel"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="module-installing-header">
+                    <span className="module-installing-icon">
+                      <span className="module-installing-symbol">▣</span>
+                    </span>
+
+                    <div className="module-installing-content">
+                      <strong>{module.name}</strong>
+                      <span>Module installation in progress</span>
+                    </div>
+
+                    <span className="module-installing-spinner" />
+                  </div>
+
+                  <div className="module-installing-divider" />
+
+                  <div className="module-installing-message">
+                    <span className="module-clock-icon">◷</span>
+                    <span>
+                      Please wait while we set up your module.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="module-card-footer">
+                  {installed ? (
+                    <button
+                      type="button"
+                      className="module-button secondary"
+                      disabled={processingModule !== null}
+                      onClick={() => handleUninstallClick(module.key)}
+                    >
+                      {uninstalling ? "Uninstalling..." : "Uninstall"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="module-button primary"
+                      disabled={processingModule !== null}
+                      onClick={() => void handleInstall(module.key)}
+                    >
+                      Install module
+                    </button>
+                  )}
+                </div>
+              )}
             </article>
           );
         })}
@@ -162,6 +271,17 @@ export default function ModulesPage() {
       {availableModules.length === 0 && (
         <p>No modules are currently available.</p>
       )}
+
+      <ConfirmDialog
+        open={showUninstallDialog}
+        title={`Uninstall ${selectedModuleName ?? "module"}?`}
+        message="Are you sure you want to uninstall this module? Your existing module data will be preserved."
+        confirmText="Uninstall module"
+        cancelText="Cancel"
+        loading={processingAction === "uninstall"}
+        onConfirm={() => void handleConfirmUninstall()}
+        onCancel={handleCancelUninstall}
+      />
     </section>
   );
 }
